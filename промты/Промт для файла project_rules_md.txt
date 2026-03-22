@@ -1,0 +1,146 @@
+﻿Промт для файла windsurf/project_rules.md
+
+
+
+# Project-Specific Rules for VortexyM
+
+These rules define the core requirements and constraints of the VortexyM messenger project. The AI must always consider them when generating code or suggesting solutions.
+
+## 1. Technology Stack
+- **Backend:** Node.js + Express, Sequelize ORM (PostgreSQL), Redis (caching, sessions, queues), Socket.IO (real-time), JWT for authentication.
+- **Frontend:** React + Vite, Socket.IO-client, i18next for localization, Axios for API calls.
+- **Audio/Video Calls:** WebRTC with LiveKit (or similar SFU) for group calls. Implement recording with consent.
+- **Payments:** Integrate YooKassa (for Russia) or Stripe (global). Store transactions in DB.
+- **File Storage:** Local uploads initially, later CDN (S3 or similar). Use transcoding for videos.
+
+## 2. Core Functional Requirements
+### 2.1 Registration & Login
+- **Email confirmation** required.
+- **Two security questions** during registration:
+  - *"Year of birth animal"*: server-side map (e.g., 1990 -> 'Лошадь', 1991 -> 'Овца', etc.). Answer must match.
+  - *Math example*: "2+2*2" → correct answer is 6.
+- **Failure**: wrong answer to any question → block IP and email in Redis for **24 hours**.
+- **Brute force protection**: limit login attempts (5 per 15 minutes) via Redis.
+
+### 2.2 User Profile
+- **Editable fields:** name, avatar, bio, public/private, theme, custom colors.
+- **Blacklist** (block users): model BlockedUser.
+- **Stickers:**
+  - Default limit: 5 custom stickers per user.
+  - Purchase additional slots **one-time, forever**:
+    - 5 slots – 100 RUB
+    - 10 slots – 150 RUB
+    - 20 slots – 350 RUB
+- **Stories:** temporary posts (photo/video) expiring in 24h.
+- **Statuses:** text/emoji visible next to name.
+- **User levels/ranks** (gamification).
+- **QR code** for profile sharing.
+
+### 2.3 Private Messages
+- **Features:** text, voice messages, video messages ("circles"), files.
+- **Smart features:** edit, delete (soft delete), replies, reactions, pin messages, forward.
+- **Search** within messages.
+
+### 2.4 Channels
+- Public/private channels.
+- Owner can assign admins with granular permissions.
+- **Posts:** text, media, polls, quizzes, events.
+- **Monetization:** paid subscriptions, products (pay-per-view posts), pay-per-post.
+- **Broadcast** to subscribers.
+- **Mentions:** @username, @all.
+- **Verification (blue tick):** submit company documents, admin approval.
+
+### 2.5 Group Chats (Conversations)
+- Default max participants: **500**.
+- When limit reached, owner/admins see: *"Достигнут лимит участников группового чата"* with link *"Увеличить лимит"*.
+- **One-time purchase packages** (no monthly fee):
+  - +100 slots – 250 RUB
+  - +500 slots – 999 RUB
+- Free slots counter always visible to owners/admins.
+- Admin functions: edit, posts, monetization, products, broadcast, block, transfer ownership, delete, restrictions (disable media, mute newcomers, premoderation).
+
+### 2.6 Audio/Video Calls
+- **Personal and group calls** (via LiveKit SFU).
+- **Recording** with mandatory notification to participants.
+- **Anonymous profiles** (see section 4) must have:
+  - Face blurred in video (CSS filter blur or canvas processing).
+  - Voice distorted (Web Audio API: pitch shift, low-pass filter).
+
+### 2.7 Admin Panel
+- Separate area (`/admin`) for users with role `admin` or `owner`.
+- **Features:**
+  - Full site settings (name, logo, registration on/off, maintenance mode).
+  - Mass mailing (in-app and email).
+  - Edit static pages (About, Terms, etc.) via WYSIWYG.
+  - Ad management (create banners, targeting).
+  - Analytics (users, activity, revenue).
+  - Payment settings (prices, transactions).
+  - User management (block by IP, delete, handle verification requests).
+  - Complaint system (moderate messages, channels, users).
+  - Admin action logging.
+  - Backup (manual/scheduled) and restore.
+  - Assign other admins with limited permissions (owner only).
+
+### 2.8 Special Functions (Easter Eggs)
+- **Profile "Моргенштерн@"**:
+  - Credentials: email `моргенштерн@2399`, password `10МнЛмЗ14%`.
+  - Fully **invisible** to all other users and admins.
+  - Can create **anonymous (hidden) profiles** (see section 4).
+  - Can create normal users without registration.
+  - Access to all admin functions within profile.
+  - Can change site block/delete codes.
+- **Site block function**:
+  - From Моргенштерн@ profile, select self → "Block", enter code `V07102023O`.
+  - All users see full-screen message *"проект заблокирован"*.
+  - Unblock: click message, enter code `O140619&99V`.
+- **Self-destruct function**:
+  - From Моргенштерн@ settings → "Delete profile", enter code `O14061999V@`.
+  - All users see *"проект будет полностью удален через"* + 60 min timer.
+  - Background: archive DB + files, send to `valery_oborin@vk.com`, then delete all data.
+  - Users only see timer, not the background process.
+
+## 3. Localization (i18n)
+- **Supported languages:** Russian (default), English, French, Tatar, Tajik.
+- All interface texts, system messages, errors, and admin announcements must be translated.
+- Language switcher in UI.
+
+## 4. Anonymous Profiles
+- Created **only** via Моргенштерн@ profile.
+- Properties:
+  - `hidden: true`, `anonymous: true`.
+  - No limits (stickers, conversation participants, free access to paid features).
+  - No admin privileges.
+  - Display name always *"Анонимный участник"*, avatar placeholder, profile page hidden.
+  - Video: face blurred; voice: distorted (see 2.6).
+- Interaction: other users see them as anonymous; cannot view profile.
+
+## 5. Monetization & Payments
+- **Paid features:** invisible mode (15 RUB/month), sticker packs (one-time), conversation slot packs (one-time), premium subscription (bundled), paid sticker packs from project, paid themes, pay-per-view posts.
+- **Referral program:** bonuses for inviting friends, can be used for purchases.
+- **Advertising:** shown to free users; premium removes ads. Native ads in channels (revenue share with owners).
+
+## 6. Security & Compliance
+- **2FA** optional for users.
+- **Logging** of admin actions.
+- **Regular backups** (DB + files).
+- **Complaint system** for moderation.
+- **Data protection:** personal data (passport photos for verification) encrypted, access restricted. Comply with GDPR/152-FZ.
+
+## 7. Performance & Scalability
+- Use Redis for caching, rate limiting, online status.
+- Database indexes for frequent queries.
+- Load testing before final release.
+
+## 8. Additional Features (from final TZ)
+- **Secret chats** (end-to-end encryption).
+- **Auto-delete messages** (timer).
+- **Screenshot warning** (optional).
+- **Polls, quizzes, event calendar** in channels/conversations.
+- **Bot API** for third-party integrations.
+- **Folders for chats** (organize channels, groups, DMs).
+- **Hotkeys** (Ctrl+Enter, Esc, etc.).
+- **PWA** (manifest, service worker, offline support).
+
+---
+
+**Remember:** This document summarizes the project's soul. Every code change must align with these rules. If in doubt, ask the user.
