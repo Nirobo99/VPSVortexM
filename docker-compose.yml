@@ -1,17 +1,20 @@
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: vortexym_postgres
+  mysql:
+    image: mysql:8.0
+    container_name: vortexym_mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: vortexym
-      POSTGRES_USER: vortexym_user
-      POSTGRES_PASSWORD: vortexym_pass
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: vortexym
+      MYSQL_USER: vortexym_user
+      MYSQL_PASSWORD: vortexym_pass
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
 
   redis:
     image: redis:7
@@ -23,5 +26,5 @@ services:
       - redis_data:/data
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:

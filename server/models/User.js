@@ -1,7 +1,7 @@
 const { DataTypes, Sequelize } = require('sequelize');
-const { sequelize } = require('./index');
 
-const User = sequelize.define('User', {
+module.exports = (sequelize) => {
+  const User = sequelize.define('User', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -64,6 +64,25 @@ const User = sequelize.define('User', {
   anonymous: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  bio: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  isPublic: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+    field: 'is_public'
+  },
+  theme: {
+    type: DataTypes.STRING,
+    defaultValue: 'light'
+  },
+  customColors: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null,
+    field: 'custom_colors'
   }
 }, {
   tableName: 'users',
@@ -72,4 +91,17 @@ const User = sequelize.define('User', {
   updatedAt: 'updated_at'
 });
 
-module.exports = User;
+// Ассоциации
+User.associate = (models) => {
+  User.hasMany(models.BlockedUser, { 
+    as: 'blockedUsers', 
+    foreignKey: 'user_id' 
+  });
+  User.hasMany(models.BlockedUser, { 
+    as: 'blockedByUsers', 
+    foreignKey: 'blocked_user_id' 
+  });
+};
+
+return User;
+};

@@ -5,6 +5,34 @@ const redisClient = require('../utils/redis');
 const { User } = require('../models');
 const router = express.Router();
 
+// Middleware для защиты от брутфорса
+const loginRateLimit = async (req, res, next) => {
+  try {
+    const clientIp = req.ip || req.connection.remoteAddress;
+    const key = `login:attempts:ip:${clientIp}`;
+    
+    const attempts = await redisClient.get(key);
+    
+    if (attempts && parseInt(attempts) >= 5) {
+      return res.status(429).json({
+        error: 'Too many login attempts',
+        message: 'Please try again later'
+      });
+    }
+    
+    // Увеличиваем счётчик попыток
+    await redisClient.incr(key);
+    
+    // Устанавливаем TTL на 15 минут
+    await redisClient.expire(key, 15 * 60);
+    
+    next();
+  } catch (error) {
+    console.error('Rate limit error:', error);
+    next();
+  }
+};
+
 // Объект соответствия годов животным (китайский календарь)
 const animalYears = {
   1990: 'Лошадь', 1991: 'Овца', 1992: 'Обезьяна', 1993: 'Петух',
@@ -23,6 +51,17 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, name, birthYear, animalAnswer, mathAnswer } = req.body;
     const clientIp = req.ip || req.connection.remoteAddress;
+
+    // Проверка блокировок перед началом регистрации
+    const emailBlock = await redisClient.get(`block:email:${email}`);
+    const ipBlock = await redisClient.get(`block:ip:${clientIp}`);
+    
+    if (emailBlock || ipBlock) {
+      return res.status(429).json({ 
+        error: 'Registration blocked',
+        message: 'Registration is blocked for 24 hours due to incorrect answers'
+      });
+    }
 
     // Проверка математического ответа (2+2*2 = 6)
     if (mathAnswer !== '6') {
@@ -84,9 +123,10 @@ router.post('/register', async (req, res) => {
 });
 
 // Вход
-router.post('/login', async (req, res) => {
+router.post('/login', loginRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
 
     // Поиск пользователя
     const user = await User.findOne({ where: { email } });
@@ -99,6 +139,9 @@ router.post('/login', async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    // При успешном входе удаляем счётчик попыток
+    await redisClient.del(`login:attempts:ip:${clientIp}`);
 
     // Создание JWT токена
     const token = jwt.sign(
