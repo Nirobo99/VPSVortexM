@@ -114,4 +114,115 @@ export const adminAPI = {
   },
 };
 
-export default api;
+// API для сообщений
+export const messagesAPI = {
+  // Получение истории сообщений с пользователем
+  getMessages: async (userId, page = 1, limit = 50) => {
+    const response = await api.get(`/messages/${userId}?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Отправка нового сообщения
+  sendMessage: async (messageData) => {
+    const response = await api.post('/messages', messageData);
+    return response.data;
+  },
+
+  // Редактирование сообщения
+  editMessage: async (messageId, text) => {
+    const response = await api.put(`/messages/${messageId}`, { text });
+    return response.data;
+  },
+
+  // Удаление сообщения
+  deleteMessage: async (messageId) => {
+    const response = await api.delete(`/messages/${messageId}`);
+    return response.data;
+  },
+
+  // Добавление/удаление реакции
+  toggleReaction: async (messageId, emoji) => {
+    const response = await api.post(`/messages/${messageId}/reactions`, { emoji });
+    return response.data;
+  },
+
+  // Закрепление сообщения
+  pinMessage: async (messageId) => {
+    const response = await api.post(`/messages/${messageId}/pin`);
+    return response.data;
+  },
+
+  // Открепление сообщения
+  unpinMessage: async (messageId) => {
+    const response = await api.delete(`/messages/${messageId}/pin`);
+    return response.data;
+  }
+};
+
+// API для диалогов
+export const dialogsAPI = {
+  // Получение списка диалогов
+  getDialogs: async (page = 1, limit = 20) => {
+    const response = await api.get(`/dialogs?page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Поиск сообщений в диалоге
+  searchInDialog: async (userId, query, page = 1, limit = 20) => {
+    const response = await api.get(`/dialogs/${userId}/messages/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`);
+    return response.data;
+  },
+
+  // Глобальный поиск сообщений
+  searchMessages: async (query, withUserId = null, page = 1, limit = 20) => {
+    let url = `/messages/search?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`;
+    if (withUserId) {
+      url += `&withUserId=${withUserId}`;
+    }
+    const response = await api.get(url);
+    return response.data;
+  },
+
+  // Отметить все сообщения в диалоге как прочитанные
+  markDialogAsRead: async (userId) => {
+    const response = await api.post(`/dialogs/${userId}/read`);
+    return response.data;
+  }
+};
+
+// API для загрузки файлов
+export const uploadAPI = {
+  // Загрузка нескольких файлов
+  uploadFiles: async (files) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    const response = await api.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Загрузка одного файла
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post('/upload/single', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Удаление файла
+  deleteFile: async (filename) => {
+    const response = await api.delete(`/upload/${filename}`);
+    return response.data;
+  }
+};
