@@ -7,6 +7,7 @@ const messageRoutes = require('./routes/messages');
 const uploadRoutes = require('./routes/upload');
 const dialogRoutes = require('./routes/dialogs');
 const callRoutes = require('./routes/calls');
+const channelRoutes = require('./routes/channels');
 
 const app = express();
 
@@ -29,5 +30,6 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/dialogs', dialogRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/channels', channelRoutes);
 
 module.exports = app;

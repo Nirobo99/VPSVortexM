@@ -31,6 +31,13 @@ const AdminLog = require('./AdminLog');
 const Call = require('./Call');
 const CallParticipant = require('./CallParticipant');
 const CallRecording = require('./CallRecording');
+const Channel = require('./Channel');
+const ChannelMember = require('./ChannelMember');
+const ChannelBan = require('./ChannelBan');
+const Post = require('./Post');
+const Product = require('./Product');
+const Poll = require('./Poll');
+const Event = require('./Event');
 
 // Setup associations
 const models = {
@@ -44,7 +51,14 @@ const models = {
   AdminLog,
   Call,
   CallParticipant,
-  CallRecording
+  CallRecording,
+  Channel,
+  ChannelMember,
+  ChannelBan,
+  Post,
+  Product,
+  Poll,
+  Event
 };
 
 Object.keys(models).forEach(modelName => {
