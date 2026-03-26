@@ -19,14 +19,26 @@ const sequelize = new Sequelize(
   }
 );
 
-// Загрузка моделей
+// Load models
 const User = require('./User');
 const BlockedUser = require('./BlockedUser');
+const Message = require('./Message');
+const Attachment = require('./Attachment');
+const Reaction = require('./Reaction');
+const PinnedMessage = require('./PinnedMessage');
+const UserIPLog = require('./UserIPLog');
+const AdminLog = require('./AdminLog');
 
-// Установка ассоциаций
+// Setup associations
 const models = {
   User,
-  BlockedUser
+  BlockedUser,
+  Message,
+  Attachment,
+  Reaction,
+  PinnedMessage,
+  UserIPLog,
+  AdminLog
 };
 
 Object.keys(models).forEach(modelName => {
@@ -35,5 +47,5 @@ Object.keys(models).forEach(modelName => {
   }
 });
 
-// Экспортируем объект sequelize и сам класс Sequelize
+// Export sequelize instance and Sequelize class
 module.exports = { sequelize, Sequelize, ...models };

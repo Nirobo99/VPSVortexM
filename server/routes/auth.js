@@ -3,29 +3,49 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const redisClient = require('../utils/redis');
 const { User } = require('../models');
+const { getClientIP, getIPInfo } = require('../utils/ipHelper');
 const router = express.Router();
 
-// Middleware для защиты от брутфорса
+// Middleware for brute force protection with VPN support
 const loginRateLimit = async (req, res, next) => {
   try {
-    const clientIp = req.ip || req.connection.remoteAddress;
-    const key = `login:attempts:ip:${clientIp}`;
+    const ipInfo = getIPInfo(req);
+    const clientIP = ipInfo.realIP;
     
-    const attempts = await redisClient.get(key);
+    // Rate limit by both IP and email combination for VPN users
+    const ipKey = `login:attempts:ip:${clientIP}`;
+    const { email } = req.body;
+    const emailKey = email ? `login:attempts:email:${email}` : null;
     
-    if (attempts && parseInt(attempts) >= 5) {
+    const [ipAttempts, emailAttempts] = await Promise.all([
+      redisClient.get(ipKey),
+      emailKey ? redisClient.get(emailKey) : Promise.resolve(null)
+    ]);
+    
+    // Block if either IP or email exceeds limit
+    if ((ipAttempts && parseInt(ipAttempts) >= 5) || 
+        (emailAttempts && parseInt(emailAttempts) >= 5)) {
       return res.status(429).json({
         error: 'Too many login attempts',
-        message: 'Please try again later'
+        message: 'Please try again later',
+        blockedBy: ipAttempts >= 5 ? 'ip' : 'email'
       });
     }
     
-    // Увеличиваем счётчик попыток
-    await redisClient.incr(key);
+    // Increment attempt counters
+    await Promise.all([
+      redisClient.incr(ipKey),
+      emailKey ? redisClient.incr(emailKey) : Promise.resolve(null)
+    ]);
     
-    // Устанавливаем TTL на 15 минут
-    await redisClient.expire(key, 15 * 60);
+    // Set TTL for 15 minutes
+    await Promise.all([
+      redisClient.expire(ipKey, 15 * 60),
+      emailKey ? redisClient.expire(emailKey, 15 * 60) : Promise.resolve(null)
+    ]);
     
+    // Store IP info for logging
+    req.ipInfo = ipInfo;
     next();
   } catch (error) {
     console.error('Rate limit error:', error);
@@ -33,7 +53,7 @@ const loginRateLimit = async (req, res, next) => {
   }
 };
 
-// Объект соответствия годов животным (китайский календарь)
+// Animal years mapping (Chinese zodiac)
 const animalYears = {
   1990: 'Лошадь', 1991: 'Овца', 1992: 'Обезьяна', 1993: 'Петух',
   1994: 'Собака', 1995: 'Свинья', 1996: 'Крыса', 1997: 'Бык',
@@ -46,60 +66,78 @@ const animalYears = {
   2022: 'Тигр', 2023: 'Кролик', 2024: 'Дракон', 2025: 'Змея'
 };
 
-// Регистрация
+// Registration endpoint with VPN support
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, birthYear, animalAnswer, mathAnswer } = req.body;
-    const clientIp = req.ip || req.connection.remoteAddress;
+    const ipInfo = getIPInfo(req);
+    const clientIP = ipInfo.realIP;
 
-    // Проверка блокировок перед началом регистрации
-    const emailBlock = await redisClient.get(`block:email:${email}`);
-    const ipBlock = await redisClient.get(`block:ip:${clientIp}`);
+    // Log registration attempt with IP info
+    console.log('Registration attempt:', {
+      email,
+      ipInfo,
+      timestamp: new Date().toISOString()
+    });
+
+    // Check blocks before registration (email + IP combination)
+    const [emailBlock, ipBlock, emailIPBlock] = await Promise.all([
+      redisClient.get(`block:email:${email}`),
+      redisClient.get(`block:ip:${clientIP}`),
+      redisClient.get(`block:emailip:${email}:${clientIP}`)
+    ]);
     
-    if (emailBlock || ipBlock) {
+    if (emailBlock || ipBlock || emailIPBlock) {
       return res.status(429).json({ 
         error: 'Registration blocked',
-        message: 'Registration is blocked for 24 hours due to incorrect answers'
+        message: 'Registration is blocked for 24 hours due to incorrect answers',
+        blockedBy: emailBlock ? 'email' : ipBlock ? 'ip' : 'emailip'
       });
     }
 
-    // Проверка математического ответа (2+2*2 = 6)
+    // Check math answer (2+2*2 = 6)
     if (mathAnswer !== '6') {
-      // Блокировка в Redis на 24 часа
-      await redisClient.setEx(`block:email:${email}`, 24 * 60 * 60, '1');
-      await redisClient.setEx(`block:ip:${clientIp}`, 24 * 60 * 60, '1');
+      // Block email + IP combination for 24 hours
+      await Promise.all([
+        redisClient.setEx(`block:email:${email}`, 24 * 60 * 60, '1'),
+        redisClient.setEx(`block:ip:${clientIP}`, 24 * 60 * 60, '1'),
+        redisClient.setEx(`block:emailip:${email}:${clientIP}`, 24 * 60 * 60, '1')
+      ]);
       
       return res.status(400).json({ 
         error: 'Incorrect math answer',
         blocked: true,
-        message: 'IP and email blocked for 24 hours'
+        message: 'Email and IP blocked for 24 hours'
       });
     }
 
-    // Проверка ответа про животное
+    // Check animal answer
     const correctAnimal = animalYears[birthYear];
     if (animalAnswer !== correctAnimal) {
-      // Блокировка в Redis на 24 часа
-      await redisClient.setEx(`block:email:${email}`, 24 * 60 * 60, '1');
-      await redisClient.setEx(`block:ip:${clientIp}`, 24 * 60 * 60, '1');
+      // Block email + IP combination for 24 hours
+      await Promise.all([
+        redisClient.setEx(`block:email:${email}`, 24 * 60 * 60, '1'),
+        redisClient.setEx(`block:ip:${clientIP}`, 24 * 60 * 60, '1'),
+        redisClient.setEx(`block:emailip:${email}:${clientIP}`, 24 * 60 * 60, '1')
+      ]);
       
       return res.status(400).json({ 
         error: 'Incorrect animal answer',
         blocked: true,
-        message: 'IP and email blocked for 24 hours'
+        message: 'Email and IP blocked for 24 hours'
       });
     }
 
-    // Проверка существования пользователя
+    // Check if user exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Хеширование пароля
+    // Hash password
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Создание пользователя
+    // Create user
     const user = await User.create({
       email,
       passwordHash,
@@ -122,28 +160,39 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Вход
+// Login endpoint with VPN support
 router.post('/login', loginRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body;
-    const clientIp = req.ip || req.connection.remoteAddress;
+    const ipInfo = req.ipInfo || getIPInfo(req);
+    const clientIP = ipInfo.realIP;
 
-    // Поиск пользователя
+    // Log login attempt with IP info
+    console.log('Login attempt:', {
+      email,
+      ipInfo,
+      timestamp: new Date().toISOString()
+    });
+
+    // Find user
     const user = await User.findOne({ where: { email } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Проверка пароля
+    // Check password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // При успешном входе удаляем счётчик попыток
-    await redisClient.del(`login:attempts:ip:${clientIp}`);
+    // Clear attempt counters on successful login
+    await Promise.all([
+      redisClient.del(`login:attempts:ip:${clientIP}`),
+      redisClient.del(`login:attempts:email:${email}`)
+    ]);
 
-    // Создание JWT токена
+    // Create JWT token
     const token = jwt.sign(
       { 
         userId: user.id, 
