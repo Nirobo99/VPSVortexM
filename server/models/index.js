@@ -35,6 +35,9 @@ const Channel = require('./Channel');
 const ChannelMember = require('./ChannelMember');
 const ChannelBan = require('./ChannelBan');
 const Post = require('./Post');
+const PostComment = require('./PostComment');
+const PostReaction = require('./PostReaction');
+const PostAttachment = require('./PostAttachment');
 const Product = require('./Product');
 const Poll = require('./Poll');
 const Event = require('./Event');
@@ -56,6 +59,9 @@ const models = {
   ChannelMember,
   ChannelBan,
   Post,
+  PostComment,
+  PostReaction,
+  PostAttachment,
   Product,
   Poll,
   Event
