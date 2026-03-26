@@ -226,3 +226,56 @@ export const uploadAPI = {
     return response.data;
   }
 };
+
+// API для звонков
+export const callsAPI = {
+  // Начать звонок
+  startCall: async (targetId, type = 'video', conversationId = null) => {
+    const response = await api.post('/calls/start', {
+      targetId,
+      conversationId,
+      type
+    });
+    return response.data;
+  },
+
+  // Принять звонок
+  acceptCall: async (callId) => {
+    const response = await api.post(`/calls/${callId}/accept`);
+    return response.data;
+  },
+
+  // Отклонить звонок
+  rejectCall: async (callId) => {
+    const response = await api.post(`/calls/${callId}/reject`);
+    return response.data;
+  },
+
+  // Завершить звонок
+  endCall: async (callId) => {
+    const response = await api.post(`/calls/${callId}/end`);
+    return response.data;
+  },
+
+  // Получить историю звонков
+  getCallHistory: async (options = {}) => {
+    const { page = 1, limit = 20, type } = options;
+    const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+    if (type) params.append('type', type);
+    
+    const response = await api.get(`/calls/history?${params}`);
+    return response.data;
+  },
+
+  // Получить детали звонка
+  getCallDetails: async (callId) => {
+    const response = await api.get(`/calls/${callId}`);
+    return response.data;
+  },
+
+  // Обновить состояние участника
+  updateParticipantState: async (callId, state) => {
+    const response = await api.post(`/calls/${callId}/participant/state`, state);
+    return response.data;
+  }
+};

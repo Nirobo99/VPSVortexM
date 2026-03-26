@@ -28,6 +28,9 @@ const Reaction = require('./Reaction');
 const PinnedMessage = require('./PinnedMessage');
 const UserIPLog = require('./UserIPLog');
 const AdminLog = require('./AdminLog');
+const Call = require('./Call');
+const CallParticipant = require('./CallParticipant');
+const CallRecording = require('./CallRecording');
 
 // Setup associations
 const models = {
@@ -38,7 +41,10 @@ const models = {
   Reaction,
   PinnedMessage,
   UserIPLog,
-  AdminLog
+  AdminLog,
+  Call,
+  CallParticipant,
+  CallRecording
 };
 
 Object.keys(models).forEach(modelName => {

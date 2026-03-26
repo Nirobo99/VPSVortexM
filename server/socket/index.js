@@ -222,6 +222,42 @@ function initializeSocketIO(httpServer) {
         // Notify others that this user is offline
         socket.broadcast.emit('user_offline', { userId: socket.userId });
         
+        // Handle active calls cleanup
+        const { Call, CallParticipant } = require('../models');
+        const activeCalls = await Call.findActiveCallsForUser(socket.userId);
+        
+        for (const call of activeCalls) {
+          // Remove participant from call
+          await CallParticipant.removeParticipant(call.id, socket.userId);
+          
+          // Notify other participants
+          const activeParticipants = await CallParticipant.getActiveParticipants(call.id);
+          if (activeParticipants.length > 0) {
+            for (const participant of activeParticipants) {
+              const participantSocketId = await getUserSocketId(participant.userId);
+              if (participantSocketId) {
+                socket.to(participantSocketId).emit('call_participant_disconnected', {
+                  callId: call.id,
+                  participantId: socket.userId
+                });
+              }
+            }
+          } else {
+            // No participants left, end the call
+            call.status = 'ended';
+            call.endedAt = new Date();
+            await call.save();
+            
+            // Clean up LiveKit room
+            const { livekitManager } = require('../utils/livekit');
+            try {
+              await livekitManager.deleteRoom(call.roomName);
+            } catch (error) {
+              console.warn('Failed to delete LiveKit room on disconnect:', error.message);
+            }
+          }
+        }
+        
       } catch (error) {
         console.error('Error cleaning up socket mapping:', error);
       }
