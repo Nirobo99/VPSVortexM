@@ -9,7 +9,7 @@ export default function HomePage() {
   const { t } = useTranslation();
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4" data-build={process.env.NEXT_PUBLIC_BUILD_ID || "dev"}>
       <div className="animated-bg" aria-hidden />
       <div className="absolute top-4 right-4 z-20">
         <LanguageSwitcher />

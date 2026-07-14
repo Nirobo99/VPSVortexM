@@ -980,29 +980,57 @@ docker compose -f docker-compose.prod.yml down -v
 
 ```bash
 cd /opt/vortexm
+chmod +x scripts/update-prod.sh
+./scripts/update-prod.sh feature/security-hardening
+```
+
+Скрипт сам делает `git pull`, пересборку **backend + frontend без кэша**, пересоздаёт контейнеры и проверяет, что на главной есть `animated-bg` (признак нового UI).
+
+### Ручной вариант (если скрипт недоступен)
+
+```bash
+cd /opt/vortexm
 
 # Сохраните локальные правки .env (не перезаписывается git pull)
 cp .env .env.backup
 
-# Получите обновление
-git pull origin main
+# Получите обновление (ваша ветка!)
+git pull origin feature/security-hardening
+git log -1 --oneline   # должен быть коммит с UI overhaul
 
 # Добавьте в .env (если ещё нет):
 # S3_PUBLIC_URL=https://vortexm.ru/media
 # S3_PRIVATE_BUCKET=false
 # JWT_ACCESS_TOKEN_EXPIRE_MINUTES=480
 # JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+# NGINX_CONFIG=./nginx/nginx.prod.conf
 
-# Пересборка и миграции
-docker compose -f docker-compose.prod.yml build backend frontend --no-cache
-docker compose -f docker-compose.prod.yml up -d backend frontend celery-worker
+export BUILD_ID="$(git rev-parse --short HEAD)"
+
+# ВАЖНО: пересобрать frontend, иначе UI не изменится
+docker compose -f docker-compose.prod.yml build --no-cache backend frontend
+docker compose -f docker-compose.prod.yml up -d --force-recreate backend frontend celery-worker
 docker compose -f docker-compose.prod.yml restart nginx
 
 # Проверка
 docker compose -f docker-compose.prod.yml logs backend --tail 50
+docker compose -f docker-compose.prod.yml logs frontend --tail 30
 curl -s -o /dev/null -w "%{http_code}" https://vortexm.ru/api/v1/health
+curl -s https://vortexm.ru/ | grep -o animated-bg && echo " OK: new frontend"
 ```
+
+### 11.1. «Сообщения работают, а UI старый»
+
+Так бывает, если обновился только **backend** (ручной патч или `up -d backend` без `--build frontend`).
+
+1. На сервере: `git log -1 --oneline` — есть ли коммит `feat: messaging fixes, presence, wallet transfer, UI overhaul`?
+2. Пересоберите frontend: `docker compose -f docker-compose.prod.yml build --no-cache frontend`
+3. Пересоздайте контейнер: `docker compose -f docker-compose.prod.yml up -d --force-recreate frontend`
+4. В браузере: **Ctrl+Shift+R** (жёсткое обновление) или очистите данные сайта для vortexm.ru
+5. На главной в исходном коде страницы должны быть классы `animated-bg` и `glass-card`
+
+**Burger-меню** (☰) видно на **узком экране / телефоне**. На широком мониторе слева постоянная боковая панель — это нормально.
 
 **Важно:** после `git pull` проверьте `backend/app/models/messaging.py` — поле `dialog_type` должно быть **один раз** (без дубликата).
 
-**Аватары:** убедитесь, что в `.env` указано `S3_PUBLIC_URL=https://vortexm.ru/media` и nginx проксирует `/media/` на MinIO.
+**Аватары:** убедитесь, что в `.env` указано `S3_PUBLIC_URL=https://vortexm.ru/media`, `NGINX_CONFIG=./nginx/nginx.prod.conf` и nginx проксирует `/media/` на MinIO.
