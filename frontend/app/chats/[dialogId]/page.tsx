@@ -30,6 +30,9 @@ export default function ChatPage() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [decrypted, setDecrypted] = useState<Record<string, string>>({});
   const [typing, setTyping] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
+  const [otherOnline, setOtherOnline] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const aesKeyRef = useRef<CryptoKey | null>(null);
@@ -77,9 +80,12 @@ export default function ChatPage() {
     const [d, m] = await Promise.all([api.getDialog(dialogId), api.getMessages(dialogId)]);
     setDialog(d);
     setMessages(m.messages);
+    const otherP = d.participants.find((p) => p.id !== user?.id);
+    setOtherReadAt(otherP?.last_read_at || null);
+    setOtherOnline(otherP?.is_online || false);
     await api.markDialogRead(dialogId);
     await setupE2E(d, m.messages);
-  }, [dialogId, setupE2E]);
+  }, [dialogId, setupE2E, user?.id]);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -120,6 +126,15 @@ export default function ChatPage() {
         prev.map((m) => (m.id === data.id ? { ...m, is_deleted: true, content: null } : m))
       );
     }
+    if (event.type === "message_read" && event.dialog_id === dialogId && event.user_id !== user?.id) {
+      const at = (event as { last_read_at?: string }).last_read_at;
+      setOtherReadAt(at || new Date().toISOString());
+    }
+    if (event.type === "presence_update" && event.user_id === other?.id && event.data) {
+      const data = event.data as { is_online?: boolean; last_seen_at?: string };
+      setOtherOnline(!!data.is_online);
+      if (data.last_seen_at) setOtherReadAt((prev) => prev);
+    }
     if (event.type === "typing" && event.dialog_id === dialogId && event.user_id !== user?.id) {
       setTyping(true);
       setTimeout(() => setTyping(false), 2000);
@@ -141,31 +156,58 @@ export default function ChatPage() {
 
   const send = async () => {
     if (!text.trim() && !fileRef.current?.files?.length) return;
+    if (sending) return;
+    setSending(true);
+    const plainText = text.trim();
     const file = fileRef.current?.files?.[0];
-    let content: string | undefined = text.trim() || undefined;
+    let content: string | undefined = plainText || undefined;
     let content_e2e: string | undefined;
     let message_type = file ? (file.type.startsWith("audio/") ? "voice" : file.type.startsWith("video/") ? "video_note" : "file") : "text";
 
-    if (dialog?.is_secret && content && aesKeyRef.current) {
-      content_e2e = await encryptE2E(aesKeyRef.current, content);
-      content = undefined;
-    }
+    try {
+      if (dialog?.is_secret && content && aesKeyRef.current) {
+        content_e2e = await encryptE2E(aesKeyRef.current, content);
+        content = undefined;
+      }
 
-    const msg = await api.sendMessage(dialogId, {
-      message_type,
-      content,
-      content_e2e,
-      reply_to_id: replyTo?.id,
-      file,
-    });
+      const msg = await api.sendMessage(dialogId, {
+        message_type,
+        content,
+        content_e2e,
+        reply_to_id: replyTo?.id,
+        file,
+      });
 
-    setMessages((prev) => [...prev, msg]);
-    if (content_e2e && content) {
-      setDecrypted((d) => ({ ...d, [msg.id]: text.trim() }));
+      setMessages((prev) => [...prev, msg]);
+      if (content_e2e) {
+        setDecrypted((d) => ({ ...d, [msg.id]: plainText }));
+      }
+      setText("");
+      setReplyTo(null);
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setSending(false);
     }
-    setText("");
-    setReplyTo(null);
-    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const isRead = (m: ChatMessage) => {
+    if (!otherReadAt || m.sender_id !== user?.id) return false;
+    return new Date(m.created_at) <= new Date(otherReadAt);
+  };
+
+  const presenceLabel = () => {
+    if (typing) return t("chats.typing");
+    if (otherOnline) return t("chats.online");
+    if (other?.last_seen_at) return t("chats.lastSeen", { time: new Date(other.last_seen_at).toLocaleString() });
+    return null;
+  };
+
+  const deleteChat = async () => {
+    if (!confirm(t("chats.deleteConfirm"))) return;
+    await api.hideDialog(dialogId);
+    router.push("/chats");
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -199,7 +241,7 @@ export default function ChatPage() {
             <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">👥</div>
           ) : (
             other && (
-              <Avatar src={other.avatar_url} name={other.display_name || other.username} className="h-9 w-9" />
+              <Avatar src={other.avatar_url} name={other.display_name || other.username} className="h-9 w-9" online={otherOnline} />
             )
           )}
           <div className="flex-1 min-w-0">
@@ -212,9 +254,12 @@ export default function ChatPage() {
             {dialog.is_group && dialog.member_count != null && (
               <p className="text-xs text-muted-foreground">{dialog.member_count} {t("groups.membersCount")}</p>
             )}
-            {typing && <p className="text-xs text-primary">{t("chats.typing")}</p>}
+            {presenceLabel() && <p className="text-xs text-primary">{presenceLabel()}</p>}
           </div>
           <div className="flex gap-1 shrink-0">
+            <Button variant="outline" size="sm" onClick={deleteChat} title={t("chats.deleteChat")}>
+              🗑
+            </Button>
             <Button variant="outline" size="sm" onClick={() => startCall(dialogId, "audio")} title={t("calls.audioCall")}>
               📞
             </Button>
@@ -259,6 +304,11 @@ export default function ChatPage() {
                     <span className="text-xs opacity-60">
                       {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </span>
+                    {mine && !m.is_deleted && (
+                      <span className="text-xs opacity-60" title={isRead(m) ? t("chats.read") : t("chats.sent")}>
+                        {isRead(m) ? "✓✓" : "✓"}
+                      </span>
+                    )}
                     {m.reactions.map((r) => (
                       <button
                         key={r.emoji + r.user_id}
@@ -338,7 +388,7 @@ export default function ChatPage() {
             placeholder={t("chats.messagePlaceholder")}
             className="flex-1"
           />
-          <Button onClick={send}>{t("chats.send")}</Button>
+          <Button onClick={send} disabled={sending}>{sending ? "..." : t("chats.send")}</Button>
         </div>
         <p className="text-xs text-center text-muted-foreground pb-2">{t("chats.sendHint")}</p>
       </div>

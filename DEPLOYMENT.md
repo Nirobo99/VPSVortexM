@@ -971,3 +971,38 @@ docker compose -f docker-compose.prod.yml down -v
 ---
 
 *Последнее обновление инструкции: июль 2026*
+
+---
+
+## 11. Обновление с GitHub (PuTTY)
+
+После публикации новой версии в репозиторий на сервере выполните:
+
+```bash
+cd /opt/vortexm
+
+# Сохраните локальные правки .env (не перезаписывается git pull)
+cp .env .env.backup
+
+# Получите обновление
+git pull origin main
+
+# Добавьте в .env (если ещё нет):
+# S3_PUBLIC_URL=https://vortexm.ru/media
+# S3_PRIVATE_BUCKET=false
+# JWT_ACCESS_TOKEN_EXPIRE_MINUTES=480
+# JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
+
+# Пересборка и миграции
+docker compose -f docker-compose.prod.yml build backend frontend --no-cache
+docker compose -f docker-compose.prod.yml up -d backend frontend celery-worker
+docker compose -f docker-compose.prod.yml restart nginx
+
+# Проверка
+docker compose -f docker-compose.prod.yml logs backend --tail 50
+curl -s -o /dev/null -w "%{http_code}" https://vortexm.ru/api/v1/health
+```
+
+**Важно:** после `git pull` проверьте `backend/app/models/messaging.py` — поле `dialog_type` должно быть **один раз** (без дубликата).
+
+**Аватары:** убедитесь, что в `.env` указано `S3_PUBLIC_URL=https://vortexm.ru/media` и nginx проксирует `/media/` на MinIO.

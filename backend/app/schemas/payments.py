@@ -38,3 +38,20 @@ class WalletHistoryResponse(BaseModel):
     balance: int
     payments: list[PaymentResponse]
     transactions: list[TransactionResponse]
+
+
+class TransferRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    amount: int = Field(ge=1, le=100_000)
+
+
+class TransferResponse(BaseModel):
+    balance: int
+    recipient: str
+    amount: int
+
+
+class InvisiblePurchaseResponse(BaseModel):
+    balance: int
+    invisible_until: str
+    invisible_fake_last_seen: str | None

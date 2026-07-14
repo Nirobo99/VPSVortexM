@@ -17,7 +17,10 @@ export default function WalletPage() {
   const { user, loading, reload } = useAuth();
   const [history, setHistory] = useState<WalletHistory | null>(null);
   const [amount, setAmount] = useState(500);
+  const [transferUser, setTransferUser] = useState("");
+  const [transferAmount, setTransferAmount] = useState(100);
   const [topingUp, setTopingUp] = useState(false);
+  const [prices, setPrices] = useState({ invisible_monthly: 199, group_extension: 500 });
 
   const load = () => api.getWalletHistory().then(setHistory).catch(() => {});
 
@@ -26,7 +29,10 @@ export default function WalletPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user) load();
+    if (user) {
+      load();
+      api.getWalletPrices().then(setPrices).catch(() => {});
+    }
   }, [user]);
 
   const topUp = async () => {
@@ -47,6 +53,27 @@ export default function WalletPage() {
       alert(e instanceof Error ? e.message : t("auth.error"));
     } finally {
       setTopingUp(false);
+    }
+  };
+
+  const transfer = async () => {
+    try {
+      await api.transferWallet(transferUser.trim(), transferAmount);
+      await reload();
+      load();
+      setTransferUser("");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const buyInvisible = async () => {
+    try {
+      await api.purchaseInvisible();
+      await reload();
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
     }
   };
 
@@ -105,6 +132,34 @@ export default function WalletPage() {
             {t("wallet.topUp")}
           </Button>
           <p className="text-xs text-muted-foreground">{t("wallet.yookassaHint")}</p>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">{t("wallet.transfer")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 max-w-md">
+          <Input placeholder={t("wallet.transferUsername")} value={transferUser} onChange={(e) => setTransferUser(e.target.value)} />
+          <Input type="number" min={1} value={transferAmount} onChange={(e) => setTransferAmount(Number(e.target.value))} />
+          <Button onClick={transfer} disabled={!transferUser.trim()}>{t("wallet.transferBtn")}</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">{t("wallet.paidFeatures")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 max-w-md text-sm">
+          <p>{t("wallet.invisibleHint")}</p>
+          <Button onClick={buyInvisible}>
+            {t("wallet.invisibleBuy", { price: prices.invisible_monthly })}
+          </Button>
+          <p className="text-muted-foreground">
+            {t("groups.extend")} · {t("channels.subscriptionPrice")}
+          </p>
+          <Link href="/channels" className="text-primary hover:underline block">{t("channels.title")} →</Link>
+          <Link href="/groups" className="text-primary hover:underline block">{t("groups.title")} →</Link>
         </CardContent>
       </Card>
 

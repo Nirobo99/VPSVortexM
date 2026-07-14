@@ -30,17 +30,20 @@ export function AuthLayout({ children, title }: { children: React.ReactNode; tit
   const { t } = useTranslation();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/10">
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4">
+      <div className="animated-bg" aria-hidden />
+      <div className="absolute top-4 right-4 z-20">
         <LanguageSwitcher />
       </div>
-      <div className="mb-8 text-center">
-        <Link href="/" className="text-3xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
+      <div className="relative z-10 mb-6 text-center">
+        <Link href="/" className="text-3xl font-bold bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent">
           {t("app.name")}
         </Link>
         <p className="text-muted-foreground mt-2">{t("app.tagline")}</p>
       </div>
-      <div className="w-full max-w-md">{children}</div>
+      <div className="relative z-10 w-full max-w-md glass-card rounded-2xl p-1 shadow-2xl border border-white/10">
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getAccessToken } from "@/lib/api";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000/ws";
 
@@ -20,9 +21,11 @@ let handlers = new Set<Handler>();
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 function connect() {
-  if (globalWs?.readyState === WebSocket.OPEN) return;
+  if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) return;
 
-  globalWs = new WebSocket(WS_URL);
+  const token = getAccessToken();
+  const url = token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+  globalWs = new WebSocket(url);
   globalWs.onmessage = (e) => {
     try {
       const event = JSON.parse(e.data) as WsEvent;

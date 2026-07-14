@@ -42,7 +42,10 @@ class Channel(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    visibility: Mapped[ChannelVisibility] = mapped_column(Enum(ChannelVisibility), default=ChannelVisibility.PUBLIC)
+    visibility: Mapped[ChannelVisibility] = mapped_column(
+        Enum(ChannelVisibility, values_callable=lambda x: [e.value for e in x]),
+        default=ChannelVisibility.PUBLIC,
+    )
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     subscriber_count: Mapped[int] = mapped_column(Integer, default=0)
     subscription_price: Mapped[int] = mapped_column(Integer, default=0)
@@ -59,7 +62,10 @@ class ChannelMember(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     channel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    role: Mapped[ChannelMemberRole] = mapped_column(Enum(ChannelMemberRole), default=ChannelMemberRole.SUBSCRIBER)
+    role: Mapped[ChannelMemberRole] = mapped_column(
+        Enum(ChannelMemberRole, values_callable=lambda x: [e.value for e in x]),
+        default=ChannelMemberRole.SUBSCRIBER,
+    )
     can_post: Mapped[bool] = mapped_column(Boolean, default=False)
     can_edit: Mapped[bool] = mapped_column(Boolean, default=False)
     can_delete: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -79,7 +85,10 @@ class ChannelPost(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     channel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    post_type: Mapped[PostType] = mapped_column(Enum(PostType), default=PostType.TEXT)
+    post_type: Mapped[PostType] = mapped_column(
+        Enum(PostType, values_callable=lambda x: [e.value for e in x]),
+        default=PostType.TEXT,
+    )
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(64), nullable=True)

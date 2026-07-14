@@ -10,6 +10,7 @@ from app.core.security import verify_token
 from app.core.token_blacklist import revoke_token_jti
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     Enable2FARequest,
     LoginRequest,
     MessageResponse,
@@ -156,6 +157,22 @@ async def password_reset_confirm(
     service = AuthService(db)
     try:
         await service.reset_password(body.token, body.new_password, lang)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return MessageResponse(message=t("auth.password_changed", lang))
+
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    body: ChangePasswordRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = AuthService(db)
+    try:
+        await service.change_password(user, body.current_password, body.new_password, lang)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return MessageResponse(message=t("auth.password_changed", lang))

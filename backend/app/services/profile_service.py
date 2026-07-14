@@ -77,6 +77,23 @@ class ProfileService:
         await self.gamification.add_points(user, "avatar_upload")
         return user
 
+    async def change_username(self, user: User, new_username: str) -> User:
+        now = datetime.now(timezone.utc)
+        if user.username_changed_at and (now - user.username_changed_at).days < 30:
+            raise ValueError("username_change_cooldown")
+        existing = await self.db.execute(select(User).where(User.username == new_username))
+        if existing.scalar_one_or_none():
+            raise ValueError("user_exists")
+        user.username = new_username
+        user.username_changed_at = now
+        await self.db.commit()
+        return user
+
+    async def update_invisible_settings(self, user: User, fake_last_seen: datetime | None) -> User:
+        user.invisible_fake_last_seen = fake_last_seen
+        await self.db.commit()
+        return user
+
     def generate_qr_svg(self, user: User) -> str:
         base = settings.allowed_origins.split(",")[0].strip()
         link = f"{base}/contacts/add?user={user.username}"
@@ -274,4 +291,8 @@ class ProfileService:
         }
         if full:
             data["email"] = user.email
+            data["invisible_until"] = user.invisible_until.isoformat() if user.invisible_until else None
+            data["invisible_fake_last_seen"] = (
+                user.invisible_fake_last_seen.isoformat() if user.invisible_fake_last_seen else None
+            )
         return data

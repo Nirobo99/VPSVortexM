@@ -52,7 +52,8 @@
     "invalid_media_type": "Недопустимый тип медиа",
     "story_not_found": "Сторис не найдена",
     "story_deleted": "Сторис удалена",
-    "user_exists": "Пользователь уже существует"
+    "user_exists": "Пользователь уже существует",
+    "username_change_cooldown": "Username можно менять раз в 30 дней"
   },
   "achievements": {
     "profile_complete": "Профиль заполнен",
@@ -90,7 +91,8 @@
     "message_deleted_err": "Сообщение удалено",
     "reaction_exists": "Реакция уже добавлена",
     "cannot_forward_secret": "Нельзя переслать из секретного чата",
-    "not_secret_dialog": "Это не секретный чат"
+    "not_secret_dialog": "Это не секретный чат",
+    "dialog_hidden": "Чат удалён из списка"
   },
   "calls": {
     "call_not_found": "Звонок не найден",
@@ -147,7 +149,10 @@
     "topup_success": "Кошелёк пополнен",
     "topup_pending": "Ожидание оплаты",
     "topup_canceled": "Платёж отменён",
-    "invalid_webhook": "Недействительный webhook платежа"
+    "invalid_webhook": "Недействительный webhook платежа",
+    "insufficient_balance": "Недостаточно средств на балансе",
+    "user_not_found": "Пользователь не найден",
+    "cannot_transfer_self": "Нельзя перевести самому себе"
   },
   "admin": {
     "user_not_found": "Пользователь не найден",

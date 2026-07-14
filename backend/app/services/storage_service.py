@@ -45,6 +45,10 @@ class StorageService:
         prefix = f"{settings.s3_public_url}/"
         if url_or_key.startswith(prefix):
             return url_or_key[len(prefix):]
+        if url_or_key.startswith("/media/"):
+            return url_or_key[len("/media/"):]
+        if url_or_key.startswith("http") and "/vortexm/" in url_or_key:
+            return url_or_key.split("/vortexm/", 1)[-1]
         return url_or_key
 
     @staticmethod

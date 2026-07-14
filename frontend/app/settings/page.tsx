@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { QRCodeSVG } from "qrcode.react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type BlockedUser } from "@/lib/api";
@@ -32,8 +31,10 @@ export default function SettingsPage() {
   const [locale, setLocale] = useState("ru");
   const [blocks, setBlocks] = useState<BlockedUser[]>([]);
   const [blockUsername, setBlockUsername] = useState("");
-  const [totpCode, setTotpCode] = useState("");
-  const [twoFaSetup, setTwoFaSetup] = useState<{ secret: string; provisioning_uri: string } | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [invisibleTime, setInvisibleTime] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
@@ -47,7 +48,13 @@ export default function SettingsPage() {
     setThemePrimary(user.theme_primary || "#7c3aed");
     setThemeAccent(user.theme_accent || "#a855f7");
     setLocale(user.locale);
+    setNewUsername(user.username);
     api.getBlocks().then(setBlocks).catch(() => {});
+    api.getProfile().then((p) => {
+      if (p.invisible_fake_last_seen) {
+        setInvisibleTime(p.invisible_fake_last_seen.slice(0, 16));
+      }
+    }).catch(() => {});
   }, [user]);
 
   const saveTheme = async () => {
@@ -87,24 +94,14 @@ export default function SettingsPage() {
     }
   };
 
-  const start2FA = async () => {
-    try {
-      const setup = await api.setup2FA();
-      setTwoFaSetup(setup);
-    } catch (e) {
-      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
-    }
-  };
-
-  const enable2FA = async () => {
-    if (!totpCode) return;
+  const savePassword = async () => {
+    if (!currentPassword || !newPassword) return;
     setSaving(true);
     try {
-      await api.enable2FA(totpCode);
-      setTwoFaSetup(null);
-      setTotpCode("");
-      await reload();
-      setMessage({ type: "ok", text: t("settings.twoFaEnabled") });
+      await api.changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setMessage({ type: "ok", text: t("settings.passwordChanged") });
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
     } finally {
@@ -112,14 +109,25 @@ export default function SettingsPage() {
     }
   };
 
-  const disable2FA = async () => {
-    if (!totpCode) return;
+  const saveUsername = async () => {
+    if (!newUsername.trim()) return;
     setSaving(true);
     try {
-      await api.disable2FA(totpCode);
-      setTotpCode("");
+      await api.changeUsername(newUsername.trim());
       await reload();
-      setMessage({ type: "ok", text: t("settings.twoFaDisabled") });
+      setMessage({ type: "ok", text: t("settings.usernameChanged") });
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveInvisibleTime = async () => {
+    setSaving(true);
+    try {
+      await api.updateInvisibleSettings(invisibleTime ? new Date(invisibleTime).toISOString() : null);
+      setMessage({ type: "ok", text: t("settings.invisibleSaved") });
     } catch (e) {
       setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
     } finally {
@@ -174,33 +182,59 @@ export default function SettingsPage() {
       <div className="grid gap-6">
         <Card>
           <CardHeader>
+            <CardTitle>{t("settings.password")}</CardTitle>
+            <CardDescription>{t("settings.passwordHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 max-w-md">
+            <Input type="password" placeholder={t("settings.currentPassword")} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <Input type="password" placeholder={t("settings.newPassword")} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <Button onClick={savePassword} disabled={saving}>{t("settings.savePassword")}</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.username")}</CardTitle>
+            <CardDescription>{t("settings.usernameHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 max-w-md">
+            <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
+            <Button onClick={saveUsername} disabled={saving}>{t("settings.saveUsername")}</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("wallet.invisibleTitle")}</CardTitle>
+            <CardDescription>{t("wallet.invisibleHint")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 max-w-md">
+            <div>
+              <Label>{t("wallet.invisibleFakeTime")}</Label>
+              <Input type="datetime-local" value={invisibleTime} onChange={(e) => setInvisibleTime(e.target.value)} />
+            </div>
+            <Button variant="outline" onClick={saveInvisibleTime} disabled={saving}>{t("settings.saveInvisible")}</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>{t("settings.theme")}</CardTitle>
             <CardDescription>{t("settings.themeHint")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 max-w-md">
-            <div>
-              <Label>{t("settings.themeMode")}</Label>
-              <Select value={themeMode} onChange={(e) => setThemeMode(e.target.value)}>
-                <option value="dark">{t("settings.dark")}</option>
-                <option value="light">{t("settings.light")}</option>
-                <option value="custom">{t("settings.custom")}</option>
-              </Select>
-            </div>
+            <Select value={themeMode} onChange={(e) => setThemeMode(e.target.value)}>
+              <option value="dark">{t("settings.dark")}</option>
+              <option value="light">{t("settings.light")}</option>
+              <option value="custom">{t("settings.custom")}</option>
+            </Select>
             {themeMode === "custom" && (
               <div className="flex gap-4">
-                <div>
-                  <Label>{t("settings.primaryColor")}</Label>
-                  <Input type="color" value={themePrimary} onChange={(e) => setThemePrimary(e.target.value)} className="h-10 w-20" />
-                </div>
-                <div>
-                  <Label>{t("settings.accentColor")}</Label>
-                  <Input type="color" value={themeAccent} onChange={(e) => setThemeAccent(e.target.value)} className="h-10 w-20" />
-                </div>
+                <Input type="color" value={themePrimary} onChange={(e) => setThemePrimary(e.target.value)} className="h-10 w-20" />
+                <Input type="color" value={themeAccent} onChange={(e) => setThemeAccent(e.target.value)} className="h-10 w-20" />
               </div>
             )}
-            <Button onClick={saveTheme} disabled={saving}>
-              {t("settings.saveTheme")}
-            </Button>
+            <Button onClick={saveTheme} disabled={saving}>{t("settings.saveTheme")}</Button>
           </CardContent>
         </Card>
 
@@ -216,49 +250,7 @@ export default function SettingsPage() {
               <option value="tt">{t("lang.tt")}</option>
               <option value="tg">{t("lang.tg")}</option>
             </Select>
-            <Button variant="outline" onClick={saveLocale}>
-              {t("settings.saveLocale")}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("settings.twoFa")}</CardTitle>
-            <CardDescription>
-              {user.totp_enabled ? t("settings.twoFaOn") : t("settings.twoFaOff")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 max-w-md">
-            {!user.totp_enabled && !twoFaSetup && (
-              <Button onClick={start2FA}>{t("settings.setupTwoFa")}</Button>
-            )}
-            {twoFaSetup && (
-              <div className="space-y-3">
-                <QRCodeSVG value={twoFaSetup.provisioning_uri} size={160} />
-                <p className="text-xs font-mono break-all">{twoFaSetup.secret}</p>
-                <Input
-                  placeholder={t("auth.totpCode")}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value)}
-                />
-                <Button onClick={enable2FA} disabled={saving}>
-                  {t("settings.enableTwoFa")}
-                </Button>
-              </div>
-            )}
-            {user.totp_enabled && (
-              <div className="space-y-3">
-                <Input
-                  placeholder={t("auth.totpCode")}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(e.target.value)}
-                />
-                <Button variant="destructive" onClick={disable2FA} disabled={saving}>
-                  {t("settings.disableTwoFa")}
-                </Button>
-              </div>
-            )}
+            <Button variant="outline" onClick={saveLocale}>{t("settings.saveLocale")}</Button>
           </CardContent>
         </Card>
 
@@ -269,14 +261,8 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-2 max-w-md">
-              <Input
-                placeholder={t("settings.blockUsername")}
-                value={blockUsername}
-                onChange={(e) => setBlockUsername(e.target.value)}
-              />
-              <Button onClick={blockByUsername} disabled={saving}>
-                {t("settings.block")}
-              </Button>
+              <Input placeholder={t("settings.blockUsername")} value={blockUsername} onChange={(e) => setBlockUsername(e.target.value)} />
+              <Button onClick={blockByUsername} disabled={saving}>{t("settings.block")}</Button>
             </div>
             <div className="space-y-2">
               {blocks.map((b) => (
@@ -285,9 +271,7 @@ export default function SettingsPage() {
                     <Avatar src={b.avatar_url} name={b.display_name || b.username} className="h-8 w-8 text-xs" />
                     <span className="text-sm">@{b.username}</span>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => unblock(b.id)}>
-                    {t("settings.unblock")}
-                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => unblock(b.id)}>{t("settings.unblock")}</Button>
                 </div>
               ))}
               {blocks.length === 0 && <p className="text-sm text-muted-foreground">{t("settings.noBlocks")}</p>}

@@ -8,13 +8,16 @@ from app.core.deps import get_current_user
 from app.core.i18n import t
 from app.models.user import User
 from app.schemas.payments import (
+    InvisiblePurchaseResponse,
     PaymentResponse,
     TopUpRequest,
     TopUpResponse,
+    TransferRequest,
+    TransferResponse,
     WalletBalanceResponse,
     WalletHistoryResponse,
 )
-from app.services.payment_service import PaymentService
+from app.services.payment_service import INVISIBLE_MONTHLY_PRICE, PaymentService
 
 router = APIRouter(prefix="/wallet", tags=["wallet"])
 
@@ -101,3 +104,42 @@ async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db))
     service = PaymentService(db)
     await service.handle_webhook(body)
     return {"status": "ok"}
+
+
+@router.post("/transfer", response_model=TransferResponse)
+async def transfer(
+    body: TransferRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = PaymentService(db)
+    try:
+        data = await service.transfer(user, body.username, body.amount)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"wallet.{e}", lang))
+    return TransferResponse(**data)
+
+
+@router.post("/invisible", response_model=InvisiblePurchaseResponse)
+async def purchase_invisible(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = PaymentService(db)
+    try:
+        data = await service.purchase_invisible(user, user.invisible_fake_last_seen)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"wallet.{e}", lang))
+    return InvisiblePurchaseResponse(**data)
+
+
+@router.get("/prices")
+async def get_prices():
+    return {
+        "invisible_monthly": INVISIBLE_MONTHLY_PRICE,
+        "group_extension": 500,
+    }

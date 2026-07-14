@@ -72,14 +72,28 @@ export default function GroupsPage() {
         {groups.map((g) => (
           <Link key={g.id} href={`/chats/${g.id}`}>
             <Card className="hover:border-primary/50 transition-colors">
-              <CardContent className="py-3 flex justify-between items-center">
+              <CardContent className="py-3 flex justify-between items-center gap-2">
                 <div>
                   <p className="font-medium">👥 {g.title}</p>
                   <p className="text-sm text-muted-foreground">
                     {g.member_count}/{g.member_limit} {t("groups.membersCount")}
                   </p>
                 </div>
-                {g.is_paid_extended && <span className="text-xs text-primary">PRO</span>}
+                <div className="flex items-center gap-2">
+                  {g.is_paid_extended && <span className="text-xs text-primary">PRO</span>}
+                  {!g.is_paid_extended && g.member_count >= g.member_limit - 50 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        api.extendGroup(g.id).then(() => window.location.reload());
+                      }}
+                    >
+                      {t("groups.extend")}
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </Link>

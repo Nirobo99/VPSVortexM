@@ -120,6 +120,10 @@ class MessagingService:
         result = await self.db.execute(select(Dialog).where(Dialog.direct_key == dkey))
         dialog = result.scalar_one_or_none()
         if dialog:
+            participant = await self._get_participant(dialog.id, user.id)
+            if participant and participant.is_hidden:
+                participant.is_hidden = False
+                await self.db.commit()
             return dialog
 
         dialog = Dialog(
@@ -139,7 +143,7 @@ class MessagingService:
         result = await self.db.execute(
             select(DialogParticipant, Dialog)
             .join(Dialog, Dialog.id == DialogParticipant.dialog_id)
-            .where(DialogParticipant.user_id == user.id)
+            .where(DialogParticipant.user_id == user.id, DialogParticipant.is_hidden == False)
             .order_by(Dialog.last_message_at.desc().nullslast())
         )
         items = []
@@ -214,6 +218,7 @@ class MessagingService:
             participants.append({
                 "user": u,
                 "e2e_public_key": p.e2e_public_key,
+                "last_read_at": p.last_read_at.isoformat() if p.last_read_at else None,
             })
 
         unread = await UnreadService.get(str(user.id), str(dialog.id))
@@ -237,6 +242,12 @@ class MessagingService:
             [str(uid) for uid in other_ids],
             {"type": "e2e_key", "dialog_id": str(dialog_id), "user_id": str(user.id), "public_key": public_key},
         )
+
+    async def hide_dialog(self, user: User, dialog_id: uuid.UUID) -> None:
+        participant = await self._require_participant(dialog_id, user.id)
+        participant.is_hidden = True
+        await UnreadService.reset(str(user.id), str(dialog_id))
+        await self.db.commit()
 
     async def _other_user_ids(self, dialog_id: uuid.UUID, exclude_user_id: uuid.UUID) -> list[uuid.UUID]:
         result = await self.db.execute(
@@ -266,7 +277,12 @@ class MessagingService:
         other_ids = await self._other_user_ids(dialog_id, user.id)
         await ws_manager.publish_many(
             [str(uid) for uid in other_ids],
-            {"type": "message_read", "dialog_id": str(dialog_id), "user_id": str(user.id)},
+            {
+                "type": "message_read",
+                "dialog_id": str(dialog_id),
+                "user_id": str(user.id),
+                "last_read_at": participant.last_read_at.isoformat(),
+            },
         )
 
     async def pin_message(self, user: User, dialog_id: uuid.UUID, message_id: uuid.UUID | None) -> None:
@@ -455,7 +471,13 @@ class MessagingService:
             await UnreadService.increment(str(oid), str(dialog_id))
 
         await self.db.commit()
-        await self.db.refresh(msg)
+
+        result = await self.db.execute(
+            select(Message)
+            .where(Message.id == msg.id)
+            .options(selectinload(Message.reactions).selectinload(MessageReaction.user))
+        )
+        msg = result.scalar_one()
 
         msg_dict = self._message_to_dict(msg, user, is_secret)
         event = {"type": "message_new", "data": msg_dict}
@@ -488,6 +510,13 @@ class MessagingService:
         msg.is_edited = True
         msg.edited_at = datetime.now(timezone.utc)
         await self.db.commit()
+
+        result = await self.db.execute(
+            select(Message)
+            .where(Message.id == msg.id)
+            .options(selectinload(Message.reactions).selectinload(MessageReaction.user))
+        )
+        msg = result.scalar_one()
 
         msg_dict = self._message_to_dict(msg, user, is_secret)
         participant_ids = await self._dialog_user_ids(dialog.id)

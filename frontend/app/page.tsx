@@ -9,21 +9,29 @@ export default function HomePage() {
   const { t } = useTranslation();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/10">
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
+      <div className="animated-bg" aria-hidden />
+      <div className="absolute top-4 right-4 z-20">
         <LanguageSwitcher />
       </div>
-      <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent mb-4">
-        {t("app.name")}
-      </h1>
-      <p className="text-muted-foreground text-lg mb-8 text-center max-w-md">{t("app.tagline")}</p>
-      <div className="flex gap-4">
-        <Link href="/login">
-          <Button size="lg">{t("nav.login")}</Button>
-        </Link>
-        <Link href="/register">
-          <Button size="lg" variant="outline">{t("nav.register")}</Button>
-        </Link>
+
+      <div className="relative z-10 w-full max-w-md">
+        <div className="glass-card rounded-2xl p-8 sm:p-10 text-center shadow-2xl border border-white/10">
+          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary via-purple-400 to-pink-400 bg-clip-text text-transparent mb-3">
+            {t("app.name")}
+          </h1>
+          <p className="text-muted-foreground mb-8">{t("app.tagline")}</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/login" className="flex-1">
+              <Button size="lg" className="w-full">{t("nav.login")}</Button>
+            </Link>
+            <Link href="/register" className="flex-1">
+              <Button size="lg" variant="outline" className="w-full bg-background/50 backdrop-blur">
+                {t("nav.register")}
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

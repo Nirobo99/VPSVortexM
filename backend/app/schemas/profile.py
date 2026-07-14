@@ -4,6 +4,14 @@ from pydantic import BaseModel, Field, field_validator
 import re
 
 
+class UsernameChangeRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+
+
+class InvisibleSettingsRequest(BaseModel):
+    fake_last_seen: datetime | None = None
+
+
 class ProfileUpdateRequest(BaseModel):
     display_name: str | None = Field(None, max_length=128)
     bio: str | None = Field(None, max_length=2000)
@@ -65,6 +73,8 @@ class ProfileResponse(BaseModel):
     level: int
     locale: str
     role: str
+    invisible_until: str | None = None
+    invisible_fake_last_seen: str | None = None
 
 
 class PublicProfileResponse(BaseModel):

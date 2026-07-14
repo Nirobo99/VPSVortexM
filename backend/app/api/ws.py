@@ -8,7 +8,9 @@ from app.core.database import AsyncSessionLocal
 from app.core.rate_limit import RateLimitService
 from app.core.security import verify_token
 from app.core.token_blacklist import is_token_revoked
+from app.models.messaging import DialogParticipant
 from app.models.user import User
+from app.services.presence_service import PresenceService
 from app.services.ws_manager import ws_manager
 
 router = APIRouter(tags=["websocket"])
@@ -16,6 +18,8 @@ settings = get_settings()
 
 
 async def _authenticate_ws(token: str) -> User | None:
+    if not token:
+        return None
     payload = verify_token(token, "access")
     if not payload:
         return None
@@ -38,6 +42,18 @@ def _cookie_token(websocket: WebSocket) -> str | None:
     return None
 
 
+async def _contact_user_ids(db, user_id: uuid.UUID) -> list[str]:
+    result = await db.execute(
+        select(DialogParticipant.user_id).where(
+            DialogParticipant.dialog_id.in_(
+                select(DialogParticipant.dialog_id).where(DialogParticipant.user_id == user_id)
+            ),
+            DialogParticipant.user_id != user_id,
+        )
+    )
+    return list({str(row[0]) for row in result.all()})
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(None)):
     token = _cookie_token(websocket) or token
@@ -51,13 +67,22 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
     if not allowed:
         await websocket.close(code=4429)
         return
+
     await ws_manager.connect(user_id, websocket)
+    await PresenceService.set_online(user_id)
+
+    async with AsyncSessionLocal() as db:
+        contact_ids = await _contact_user_ids(db, user.id)
+        status = await PresenceService.get_status(db, user_id, user_id)
+        await PresenceService.broadcast_presence(user_id, contact_ids, status)
+
     try:
         await websocket.send_json({"type": "connected", "user_id": user_id})
         while True:
             data = await websocket.receive_json()
             msg_type = data.get("type")
             if msg_type == "ping":
+                await PresenceService.refresh(user_id)
                 await websocket.send_json({"type": "pong"})
             elif msg_type == "typing":
                 dialog_id = data.get("dialog_id")
@@ -77,3 +102,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
     finally:
         ws_manager.disconnect(user_id, websocket)
         await RateLimitService.release_websocket_connection(user_id)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.id == user.id))
+            db_user = result.scalar_one_or_none()
+            if db_user:
+                await PresenceService.set_offline(db, db_user)
+                contact_ids = await _contact_user_ids(db, user.id)
+                status = await PresenceService.get_status(db, user_id, None)
+                await PresenceService.broadcast_presence(user_id, contact_ids, status)

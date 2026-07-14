@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ settings = get_settings()
 
 MIN_TOPUP = 10
 MAX_TOPUP = 100_000
+INVISIBLE_MONTHLY_PRICE = 199
 
 
 class PaymentService:
@@ -198,3 +199,62 @@ class PaymentService:
         )
         self.db.add(txn)
         await self.db.commit()
+
+    async def transfer(self, sender: User, recipient_username: str, amount: int) -> dict:
+        if amount < 1 or amount > 100_000:
+            raise ValueError("invalid_amount")
+        if recipient_username.lower() == sender.username.lower():
+            raise ValueError("cannot_transfer_self")
+        result = await self.db.execute(select(User).where(User.username == recipient_username))
+        recipient = result.scalar_one_or_none()
+        if not recipient:
+            raise ValueError("user_not_found")
+        if sender.wallet_balance < amount:
+            raise ValueError("insufficient_balance")
+
+        sender.wallet_balance -= amount
+        recipient.wallet_balance += amount
+
+        sender_txn = WalletTransaction(
+            user_id=sender.id,
+            amount=-amount,
+            balance_after=sender.wallet_balance,
+            transaction_type=TransactionType.SPEND,
+            description=f"Перевод @{recipient.username}",
+        )
+        recipient_txn = WalletTransaction(
+            user_id=recipient.id,
+            amount=amount,
+            balance_after=recipient.wallet_balance,
+            transaction_type=TransactionType.TOPUP,
+            description=f"Перевод от @{sender.username}",
+        )
+        self.db.add(sender_txn)
+        self.db.add(recipient_txn)
+        await self.db.commit()
+        return {"balance": sender.wallet_balance, "recipient": recipient.username, "amount": amount}
+
+    async def purchase_invisible(self, user: User, fake_last_seen: datetime | None = None) -> dict:
+        price = INVISIBLE_MONTHLY_PRICE
+        if user.wallet_balance < price:
+            raise ValueError("insufficient_balance")
+        user.wallet_balance -= price
+        now = datetime.now(timezone.utc)
+        base = user.invisible_until if user.invisible_until and user.invisible_until > now else now
+        user.invisible_until = base + timedelta(days=30)
+        if fake_last_seen:
+            user.invisible_fake_last_seen = fake_last_seen
+        txn = WalletTransaction(
+            user_id=user.id,
+            amount=-price,
+            balance_after=user.wallet_balance,
+            transaction_type=TransactionType.SPEND,
+            description="Подписка «Невидимка» (30 дней)",
+        )
+        self.db.add(txn)
+        await self.db.commit()
+        return {
+            "balance": user.wallet_balance,
+            "invisible_until": user.invisible_until.isoformat(),
+            "invisible_fake_last_seen": user.invisible_fake_last_seen.isoformat() if user.invisible_fake_last_seen else None,
+        }

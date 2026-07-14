@@ -126,23 +126,35 @@ export function Avatar({
   src,
   name,
   className,
+  online,
 }: {
   src: string | null;
   name: string;
   className?: string;
+  online?: boolean;
 }) {
   const initials = name.slice(0, 2).toUpperCase();
-  if (src) {
-    return <img src={src} alt={name} className={cn("rounded-full object-cover bg-muted", className)} />;
-  }
   return (
-    <div
-      className={cn(
-        "rounded-full bg-primary/30 text-primary flex items-center justify-center font-medium",
-        className
+    <div className={cn("relative inline-flex shrink-0", className)}>
+      {src ? (
+        <img src={src} alt={name} className={cn("rounded-full object-cover bg-muted w-full h-full")} />
+      ) : (
+        <div
+          className={cn(
+            "rounded-full bg-primary/30 text-primary flex items-center justify-center font-medium w-full h-full"
+          )}
+        >
+          {initials}
+        </div>
       )}
-    >
-      {initials}
+      {online !== undefined && (
+        <span
+          className={cn(
+            "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background",
+            online ? "bg-green-500" : "bg-muted-foreground/40"
+          )}
+        />
+      )}
     </div>
   );
 }

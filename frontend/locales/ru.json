@@ -13,6 +13,7 @@
     "chats": "Чаты",
     "channels": "Каналы",
     "wallet": "Кошелёк",
+    "groups": "Беседы",
     "admin": "Админ"
   },
   "auth": {
@@ -106,7 +107,19 @@
     "block": "Заблокировать",
     "unblock": "Разблокировать",
     "noBlocks": "Список пуст",
-    "userBlocked": "Пользователь заблокирован"
+    "userBlocked": "Пользователь заблокирован",
+    "password": "Пароль",
+    "passwordHint": "Изменить пароль аккаунта",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "savePassword": "Сохранить пароль",
+    "passwordChanged": "Пароль изменён",
+    "username": "Имя пользователя",
+    "usernameHint": "Можно менять раз в 30 дней",
+    "saveUsername": "Сохранить username",
+    "usernameChanged": "Username обновлён",
+    "saveInvisible": "Сохранить время",
+    "invisibleSaved": "Настройки невидимки сохранены"
   },
   "contacts": {
     "addTitle": "Добавить контакт",
@@ -143,6 +156,13 @@
     "send": "Отправить",
     "sendHint": "Ctrl+Enter — отправить",
     "typing": "печатает...",
+    "online": "в сети",
+    "lastSeen": "был(а) {{time}}",
+    "read": "Прочитано",
+    "sent": "Отправлено",
+    "deleteChat": "Удалить чат",
+    "deleteConfirm": "Удалить чат из списка?",
+    "newChat": "Новый чат",
     "deleted": "Сообщение удалено",
     "edited": "изменено",
     "file": "Файл",
@@ -192,7 +212,8 @@
     "name": "Название",
     "members": "Участники",
     "membersHint": "username через запятую",
-    "membersCount": "участников"
+    "membersCount": "участников",
+    "extend": "Расширить до 1000 (500 ₽)"
   },
   "wallet": {
     "title": "Кошелёк",
@@ -213,7 +234,16 @@
       "topup": "Пополнение",
       "spend": "Списание",
       "refund": "Возврат"
-    }
+    },
+    "transfer": "Перевод пользователю",
+    "transferUsername": "Имя получателя",
+    "transferAmount": "Сумма перевода",
+    "transferBtn": "Перевести",
+    "paidFeatures": "Платные функции",
+    "invisibleTitle": "Невидимка",
+    "invisibleHint": "Скрывает реальный онлайн. Другим показывается выбранное время.",
+    "invisibleBuy": "Купить за {{price}} ₽/мес",
+    "invisibleFakeTime": "Показывать время «был в сети»"
   },
   "admin": {
     "title": "Админ-панель",

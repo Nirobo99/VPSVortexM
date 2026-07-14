@@ -51,9 +51,7 @@ export default function DashboardPage() {
           />
           <div>
             <CardTitle>{user.display_name || user.username}</CardTitle>
-            <CardDescription>
-              @{user.username} · {user.email}
-            </CardDescription>
+            <CardDescription>@{user.username}</CardDescription>
             {user.status_text && (
               <p className="text-sm mt-1 text-muted-foreground">{user.status_text}</p>
             )}
@@ -121,8 +119,6 @@ export default function DashboardPage() {
           </Link>
         )}
       </div>
-
-      <p className="mt-8 text-sm text-muted-foreground">{t("dashboard.stage8done")}</p>
     </AppShell>
   );
 }

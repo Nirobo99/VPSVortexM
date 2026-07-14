@@ -60,6 +60,10 @@ class User(Base):
     referral_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
     referred_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     locale: Mapped[str] = mapped_column(String(5), default="ru")
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invisible_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invisible_fake_last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    username_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

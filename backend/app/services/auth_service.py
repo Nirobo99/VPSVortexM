@@ -256,6 +256,14 @@ class AuthService:
         user.totp_secret = None
         await self.db.commit()
 
+    async def change_password(self, user: User, current_password: str, new_password: str, locale: str = "ru") -> None:
+        if not verify_password(current_password, user.password_hash):
+            raise ValueError(t("auth.invalid_credentials", locale))
+        if len(new_password) < 8:
+            raise ValueError("Password too short")
+        user.password_hash = hash_password(new_password)
+        await self.db.commit()
+
     async def _log_ip(self, user_id: uuid.UUID | None, ip: str, action: str) -> None:
         log = UserIPLog(user_id=user_id, ip_address=ip, action=action)
         self.db.add(log)

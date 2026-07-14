@@ -35,6 +35,8 @@ export interface Profile extends UserMe {
   is_anonymous: boolean;
   anonymous_mask_face: boolean;
   anonymous_mask_voice: boolean;
+  invisible_until?: string | null;
+  invisible_fake_last_seen?: string | null;
 }
 
 export interface PublicProfile {
@@ -98,6 +100,9 @@ export interface DialogParticipant {
   display_name: string | null;
   avatar_url: string | null;
   e2e_public_key: string | null;
+  last_read_at?: string | null;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 export interface DialogListItem {
@@ -601,6 +606,50 @@ class ApiClient {
 
   markDialogRead(dialogId: string) {
     return this.request<{ message: string }>(`/chats/dialogs/${dialogId}/read`, { method: "POST" }, true);
+  }
+
+  hideDialog(dialogId: string) {
+    return this.request<{ message: string }>(`/chats/dialogs/${dialogId}`, { method: "DELETE" }, true);
+  }
+
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ message: string }>(
+      "/auth/change-password",
+      { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) },
+      true
+    );
+  }
+
+  changeUsername(username: string) {
+    return this.request<Profile>("/users/me/username", { method: "PATCH", body: JSON.stringify({ username }) }, true);
+  }
+
+  updateInvisibleSettings(fakeLastSeen: string | null) {
+    return this.request<Profile>(
+      "/users/me/invisible",
+      { method: "PATCH", body: JSON.stringify({ fake_last_seen: fakeLastSeen }) },
+      true
+    );
+  }
+
+  transferWallet(username: string, amount: number) {
+    return this.request<{ balance: number; recipient: string; amount: number }>(
+      "/wallet/transfer",
+      { method: "POST", body: JSON.stringify({ username, amount }) },
+      true
+    );
+  }
+
+  purchaseInvisible() {
+    return this.request<{ balance: number; invisible_until: string; invisible_fake_last_seen: string | null }>(
+      "/wallet/invisible",
+      { method: "POST" },
+      true
+    );
+  }
+
+  getWalletPrices() {
+    return this.request<{ invisible_monthly: number; group_extension: number }>("/wallet/prices", {}, true);
   }
 
   setE2EKey(dialogId: string, publicKey: string) {

@@ -81,7 +81,7 @@ export default function ChannelPage() {
         <p className="text-muted-foreground text-sm">@{channel.slug} · {channel.subscriber_count} {t("channels.subscribers")}</p>
         {channel.description && <p className="mt-2 text-sm">{channel.description}</p>}
         <Button className="mt-3" variant={channel.is_member ? "outline" : "default"} onClick={toggleJoin}>
-          {channel.is_member ? t("channels.leave") : t("channels.join")}
+          {channel.is_member ? t("channels.leave") : channel.subscription_price > 0 ? `${t("channels.join")} (${channel.subscription_price} ₽)` : t("channels.join")}
         </Button>
       </div>
 

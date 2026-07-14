@@ -30,3 +30,6 @@ celery_app.conf.update(
 )
 
 celery_app.autodiscover_tasks(["app.tasks"])
+
+import app.tasks.email_tasks  # noqa: F401
+import app.tasks.maintenance  # noqa: F401

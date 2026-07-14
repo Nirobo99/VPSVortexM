@@ -32,6 +32,9 @@ class DialogParticipantInfo(BaseModel):
     display_name: str | None
     avatar_url: str | None
     e2e_public_key: str | None = None
+    last_read_at: str | None = None
+    is_online: bool = False
+    last_seen_at: str | None = None
 
 
 class DialogListItem(BaseModel):

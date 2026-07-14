@@ -75,7 +75,7 @@ export default function ChatsPage() {
 
   return (
     <AppShell>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2">
         <h1 className="text-2xl font-semibold">
           {t("chats.title")}
           {totalUnread > 0 && (
@@ -86,8 +86,9 @@ export default function ChatsPage() {
         </h1>
       </div>
 
-      <Card className="mb-4">
+      <Card className="mb-4 border-primary/30">
         <CardContent className="pt-4 space-y-2">
+          <p className="text-sm font-medium text-primary">{t("chats.newChat")}</p>
           <div className="flex gap-2">
             <Input
               placeholder={t("chats.newChatUsername")}

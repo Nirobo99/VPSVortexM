@@ -29,7 +29,11 @@ export function useAuth() {
           setUser(me);
         } catch {
           clearTokens();
+          setUser(null);
         }
+      } else {
+        clearTokens();
+        setUser(null);
       }
     } finally {
       setLoading(false);
@@ -39,6 +43,22 @@ export function useAuth() {
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+    const interval = setInterval(async () => {
+      const refresh = localStorage.getItem("refresh_token");
+      if (!refresh) return;
+      try {
+        const tokens = await api.refresh(refresh);
+        saveTokens(tokens);
+      } catch {
+        /* will retry on next API call */
+      }
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const logout = async () => {
     const refresh = localStorage.getItem("refresh_token");

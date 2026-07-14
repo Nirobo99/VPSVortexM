@@ -32,6 +32,7 @@ from app.schemas.messaging import (
     SearchResultItem,
 )
 from app.services.messaging_service import MessagingService
+from app.services.presence_service import PresenceService
 from app.services.storage_service import StorageService
 
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -41,14 +42,23 @@ def _lang(request: Request) -> str:
     return request.headers.get("Accept-Language", "ru")[:2]
 
 
-def _participant_info(user, e2e_key=None) -> DialogParticipantInfo:
+def _participant_info(user, e2e_key=None, last_read_at=None, presence=None) -> DialogParticipantInfo:
+    pres = presence or {}
     return DialogParticipantInfo(
         id=str(user.id),
         username=user.username,
         display_name=user.display_name,
         avatar_url=StorageService.generate_presigned_url(user.avatar_url),
         e2e_public_key=e2e_key,
+        last_read_at=last_read_at,
+        is_online=pres.get("is_online", False),
+        last_seen_at=pres.get("last_seen_at"),
     )
+
+
+async def _participant_info_async(db, user, viewer_id, e2e_key=None, last_read_at=None) -> DialogParticipantInfo:
+    presence = await PresenceService.get_status(db, str(user.id), viewer_id)
+    return _participant_info(user, e2e_key, last_read_at, presence)
 
 
 @router.get("/folders", response_model=list[FolderResponse])
@@ -161,6 +171,13 @@ async def create_dialog(
 
     d = detail["dialog"]
     p = detail["participant"]
+    participants = []
+    for item in detail["participants"]:
+        participants.append(
+            await _participant_info_async(
+                db, item["user"], str(user.id), item["e2e_public_key"], item.get("last_read_at")
+            )
+        )
     return DialogDetailResponse(
         id=str(d.id),
         dialog_type=d.dialog_type.value.lower(),
@@ -171,9 +188,7 @@ async def create_dialog(
         folder_id=str(p.folder_id) if p.folder_id else None,
         pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
         auto_delete_seconds=d.auto_delete_seconds,
-        participants=[
-            _participant_info(item["user"], item["e2e_public_key"]) for item in detail["participants"]
-        ],
+        participants=participants,
         unread_count=detail["unread_count"],
     )
 
@@ -193,6 +208,13 @@ async def get_dialog(
         raise HTTPException(status_code=404, detail=t(f"chats.{e}", lang))
     d = detail["dialog"]
     p = detail["participant"]
+    participants = []
+    for item in detail["participants"]:
+        participants.append(
+            await _participant_info_async(
+                db, item["user"], str(user.id), item["e2e_public_key"], item.get("last_read_at")
+            )
+        )
     return DialogDetailResponse(
         id=str(d.id),
         dialog_type=d.dialog_type.value.lower(),
@@ -203,11 +225,25 @@ async def get_dialog(
         folder_id=str(p.folder_id) if p.folder_id else None,
         pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
         auto_delete_seconds=d.auto_delete_seconds,
-        participants=[
-            _participant_info(item["user"], item["e2e_public_key"]) for item in detail["participants"]
-        ],
+        participants=participants,
         unread_count=detail["unread_count"],
     )
+
+
+@router.delete("/dialogs/{dialog_id}", response_model=MessageResponse)
+async def hide_dialog(
+    dialog_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = MessagingService(db)
+    try:
+        await service.hide_dialog(user, uuid.UUID(dialog_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=t(f"chats.{e}", lang))
+    return MessageResponse(message=t("chats.dialog_hidden", lang))
 
 
 @router.post("/dialogs/{dialog_id}/read", response_model=MessageResponse)

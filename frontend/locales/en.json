@@ -13,6 +13,7 @@
     "chats": "Chats",
     "channels": "Channels",
     "wallet": "Wallet",
+    "groups": "Groups",
     "admin": "Admin"
   },
   "auth": {
@@ -106,7 +107,19 @@
     "block": "Block",
     "unblock": "Unblock",
     "noBlocks": "List is empty",
-    "userBlocked": "User blocked"
+    "userBlocked": "User blocked",
+    "password": "Password",
+    "passwordHint": "Change your account password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "savePassword": "Save password",
+    "passwordChanged": "Password changed",
+    "username": "Username",
+    "usernameHint": "Can be changed once every 30 days",
+    "saveUsername": "Save username",
+    "usernameChanged": "Username updated",
+    "saveInvisible": "Save time",
+    "invisibleSaved": "Invisibility settings saved"
   },
   "contacts": {
     "addTitle": "Add contact",
@@ -143,6 +156,13 @@
     "send": "Send",
     "sendHint": "Ctrl+Enter to send",
     "typing": "typing...",
+    "online": "online",
+    "lastSeen": "last seen {{time}}",
+    "read": "Read",
+    "sent": "Sent",
+    "deleteChat": "Delete chat",
+    "deleteConfirm": "Remove chat from your list?",
+    "newChat": "New chat",
     "deleted": "Message deleted",
     "edited": "edited",
     "file": "File",
@@ -192,7 +212,8 @@
     "name": "Title",
     "members": "Members",
     "membersHint": "usernames comma-separated",
-    "membersCount": "members"
+    "membersCount": "members",
+    "extend": "Extend to 1000 members (500 ₽)"
   },
   "wallet": {
     "title": "Wallet",
@@ -213,7 +234,16 @@
       "topup": "Top up",
       "spend": "Spend",
       "refund": "Refund"
-    }
+    },
+    "transfer": "Transfer to user",
+    "transferUsername": "Recipient username",
+    "transferAmount": "Amount",
+    "transferBtn": "Transfer",
+    "paidFeatures": "Paid features",
+    "invisibleTitle": "Invisibility",
+    "invisibleHint": "Hides your real online status. Others see the time you choose.",
+    "invisibleBuy": "Buy for {{price}} ₽/month",
+    "invisibleFakeTime": "Show fake «last seen» time"
   },
   "admin": {
     "title": "Admin panel",

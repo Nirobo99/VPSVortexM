@@ -50,7 +50,10 @@ class Dialog(Base):
     __table_args__ = (Index("ix_dialogs_direct_key", "direct_key", unique=True),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    dialog_type: Mapped[DialogType] = mapped_column(Enum(DialogType), default=DialogType.DIRECT)
+    dialog_type: Mapped[DialogType] = mapped_column(
+        Enum(DialogType, values_callable=lambda x: [e.value for e in x]),
+        default=DialogType.DIRECT,
+    )
     direct_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
     title: Mapped[str | None] = mapped_column(String(128), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -87,6 +90,7 @@ class DialogParticipant(Base):
     can_moderate: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     dialog: Mapped["Dialog"] = relationship(back_populates="participants")
@@ -98,7 +102,10 @@ class Message(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     dialog_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("dialogs.id", ondelete="CASCADE"), index=True)
     sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    message_type: Mapped[MessageType] = mapped_column(Enum(MessageType), default=MessageType.TEXT)
+    message_type: Mapped[MessageType] = mapped_column(
+        Enum(MessageType, values_callable=lambda x: [e.value for e in x]),
+        default=MessageType.TEXT,
+    )
     encrypted_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     content_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_e2e: Mapped[str | None] = mapped_column(Text, nullable=True)

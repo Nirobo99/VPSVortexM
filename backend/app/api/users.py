@@ -13,12 +13,14 @@ from app.schemas.profile import (
     AnonymousUserCreateRequest,
     BlockUserRequest,
     GamificationResponse,
+    InvisibleSettingsRequest,
     ProfileResponse,
     ProfileUpdateRequest,
     PublicProfileResponse,
     StatusUpdateRequest,
     StoryCreateResponse,
     ThemeUpdateRequest,
+    UsernameChangeRequest,
 )
 from app.services.profile_service import ProfileService
 from app.services.storage_service import StorageService
@@ -107,6 +109,33 @@ async def upload_avatar(
         key = str(e)
         msg = t(f"profile.{key}", lang) if key in ("file_too_large", "invalid_image_type") else str(e)
         raise HTTPException(status_code=400, detail=msg)
+    return ProfileService.user_to_dict(user, full=True)
+
+
+@router.patch("/me/username", response_model=ProfileResponse)
+async def change_username(
+    body: UsernameChangeRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    try:
+        user = await service.change_username(user, body.username)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"profile.{e}", lang))
+    return ProfileService.user_to_dict(user, full=True)
+
+
+@router.patch("/me/invisible", response_model=ProfileResponse)
+async def update_invisible(
+    body: InvisibleSettingsRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ProfileService(db)
+    user = await service.update_invisible_settings(user, body.fake_last_seen)
     return ProfileService.user_to_dict(user, full=True)
 
 

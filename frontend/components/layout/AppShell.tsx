@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
@@ -9,13 +10,14 @@ import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", key: "dashboard" },
-  { href: "/chats", key: "chats" },
-  { href: "/channels", key: "channels" },
-  { href: "/wallet", key: "wallet" },
-  { href: "/admin/login", key: "admin", adminOnly: true },
-  { href: "/profile", key: "profile" },
-  { href: "/settings", key: "settings" },
+  { href: "/dashboard", key: "dashboard", icon: "🏠" },
+  { href: "/chats", key: "chats", icon: "💬" },
+  { href: "/channels", key: "channels", icon: "📢" },
+  { href: "/groups", key: "groups", icon: "👥" },
+  { href: "/wallet", key: "wallet", icon: "💳" },
+  { href: "/profile", key: "profile", icon: "👤" },
+  { href: "/settings", key: "settings", icon: "⚙️" },
+  { href: "/admin/login", key: "admin", icon: "🛡️", adminOnly: true },
 ] as const;
 
 function navActive(pathname: string, href: string) {
@@ -26,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (loading) {
     return (
@@ -35,32 +38,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
+
+  const navItems = NAV.filter((item) => !("adminOnly" in item) || user.has_admin_panel);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-10">
-        <Link href="/dashboard" className="text-xl font-bold text-primary shrink-0">
-          {t("app.name")}
-        </Link>
-        <nav className="hidden sm:flex items-center gap-1 mx-4">
-          {NAV.filter((item) => !("adminOnly" in item) || user.has_admin_panel).map(({ href, key }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "px-3 py-1.5 rounded-md text-sm transition-colors",
-                navActive(pathname, href) ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {t(`nav.${key}`)}
-            </Link>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2 sm:gap-4">
-          <Link href="/wallet" className="hidden sm:inline text-sm font-medium text-primary hover:underline">
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-30">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="p-2 rounded-lg hover:bg-muted lg:hidden"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+          >
+            <span className="text-xl">{menuOpen ? "✕" : "☰"}</span>
+          </button>
+          <Link href="/dashboard" className="text-xl font-bold text-primary">
+            {t("app.name")}
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/wallet" className="text-sm font-medium text-primary hover:underline hidden sm:inline">
             {user.wallet_balance.toLocaleString()} ₽
           </Link>
           <LanguageSwitcher />
@@ -72,21 +71,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
       </header>
-      <nav className="sm:hidden border-b border-border flex">
-        {NAV.filter((item) => !("adminOnly" in item) || user.has_admin_panel).map(({ href, key }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex-1 py-2.5 text-center text-sm",
-              navActive(pathname, href) ? "text-primary border-b-2 border-primary" : "text-muted-foreground"
-            )}
-          >
-            {t(`nav.${key}`)}
-          </Link>
-        ))}
-      </nav>
-      <main className="flex-1 p-4 sm:p-6 max-w-4xl mx-auto w-full">{children}</main>
+
+      <div className="flex flex-1 relative">
+        <aside
+          className={cn(
+            "fixed lg:static inset-y-0 left-0 z-20 w-64 border-r border-border bg-background/98 backdrop-blur pt-16 lg:pt-0 transition-transform duration-200",
+            menuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          )}
+        >
+          <nav className="p-3 space-y-1">
+            {navItems.map(({ href, key, icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                  navActive(pathname, href)
+                    ? "bg-primary/15 text-primary font-medium"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <span>{icon}</span>
+                {t(`nav.${key}`)}
+              </Link>
+            ))}
+          </nav>
+        </aside>
+
+        {menuOpen && (
+          <button
+            type="button"
+            className="fixed inset-0 bg-black/40 z-10 lg:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+          />
+        )}
+
+        <main className="flex-1 p-4 sm:p-6 max-w-5xl w-full mx-auto">{children}</main>
+      </div>
+
       <footer className="text-center text-xs text-muted-foreground py-2 border-t border-border">
         <button type="button" className="hover:text-foreground" onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))}>
           {t("hotkeys.title")} (?)
