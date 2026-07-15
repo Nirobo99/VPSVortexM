@@ -2,6 +2,7 @@
 
 import { useTranslation } from "react-i18next";
 import Link from "next/link";
+import { AnimatedBackground } from "@/components/landing/AnimatedBackground";
 
 const LANGS = ["ru", "en", "fr", "tt", "tg"] as const;
 
@@ -31,7 +32,7 @@ export function AuthLayout({ children, title }: { children: React.ReactNode; tit
 
   return (
     <div className="min-h-screen relative overflow-hidden flex flex-col items-center justify-center p-4">
-      <div className="animated-bg" aria-hidden />
+      <AnimatedBackground />
       <div className="absolute top-4 right-4 z-20">
         <LanguageSwitcher />
       </div>
@@ -41,8 +42,8 @@ export function AuthLayout({ children, title }: { children: React.ReactNode; tit
         </Link>
         <p className="text-muted-foreground mt-2">{t("app.tagline")}</p>
       </div>
-      <div className="relative z-10 w-full max-w-md glass-card rounded-2xl p-1 shadow-2xl border border-white/10">
-        {children}
+      <div className="relative z-10 w-full max-w-md landing-frame">
+        <div className="landing-frame__inner p-1">{children}</div>
       </div>
     </div>
   );
