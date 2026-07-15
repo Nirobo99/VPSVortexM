@@ -288,10 +288,12 @@ async def delete_story(
 
 
 def _post_response(post) -> ProfilePostResponse:
+    mt = post.media_type
+    media_type = (mt.value if hasattr(mt, "value") else str(mt or "text")).lower()
     return ProfilePostResponse(
         id=str(post.id),
         media_url=StorageService.generate_presigned_url(post.media_url),
-        media_type=post.media_type.value.lower(),
+        media_type=media_type,
         text=post.text,
         created_at=post.created_at.isoformat(),
     )
@@ -300,7 +302,10 @@ def _post_response(post) -> ProfilePostResponse:
 @router.get("/me/posts", response_model=list[ProfilePostResponse])
 async def my_posts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     service = ProfileService(db)
-    posts = await service.get_user_posts(user.id)
+    try:
+        posts = await service.get_user_posts(user.id)
+    except Exception:
+        return []
     return [_post_response(p) for p in posts]
 
 
@@ -318,11 +323,14 @@ async def create_profile_post(
     content_type = None
     if file and file.filename:
         content = await file.read()
-        content_type = file.content_type
+        content_type = file.content_type or "image/jpeg"
     try:
         post = await service.create_profile_post(user, text, content, content_type)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=t(f"profile.{e}", lang))
+        key = str(e)
+        raise HTTPException(status_code=400, detail=t(f"profile.{key}", lang))
+    except Exception:
+        raise HTTPException(status_code=500, detail=t("errors.internal", lang))
     return _post_response(post)
 
 

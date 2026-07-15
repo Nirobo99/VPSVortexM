@@ -61,6 +61,7 @@ class Dialog(Base):
     owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     member_limit: Mapped[int] = mapped_column(Integer, default=500)
     is_paid_extended: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_delete_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

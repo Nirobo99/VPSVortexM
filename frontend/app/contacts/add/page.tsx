@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api, type PublicProfile } from "@/lib/api";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
 import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -49,7 +50,12 @@ function AddContactContent() {
                 name={profile.display_name || profile.username}
                 className="h-20 w-20 text-lg"
               />
-              <p className="font-medium">{profile.display_name || profile.username}</p>
+              <p className="font-medium">
+                <DisplayNameWithBadge
+                  name={profile.display_name || profile.username}
+                  verified={profile.is_official_verified}
+                />
+              </p>
               <p className="text-sm text-muted-foreground">@{profile.username}</p>
             </div>
 

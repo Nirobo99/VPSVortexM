@@ -10,6 +10,13 @@ class ChannelCreateRequest(BaseModel):
     subscription_price: int = Field(0, ge=0)
 
 
+class ChannelUpdateRequest(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=128)
+    description: str | None = Field(None, max_length=2000)
+    visibility: str | None = None
+    subscription_price: int | None = Field(None, ge=0)
+
+
 class PostCreateRequest(BaseModel):
     post_type: str = "text"
     content: str | None = None
@@ -57,6 +64,13 @@ class GroupCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=128)
     description: str | None = None
     members: list[str] = Field(default_factory=list)
+    is_public: bool = True
+
+
+class GroupUpdateRequest(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=128)
+    description: str | None = None
+    is_public: bool | None = None
 
 
 class GroupAddMembersRequest(BaseModel):
@@ -80,6 +94,7 @@ class ChannelResponse(BaseModel):
     subscriber_count: int
     subscription_price: int
     is_member: bool
+    is_owner: bool = False
     created_at: str
 
 
@@ -113,4 +128,7 @@ class GroupResponse(BaseModel):
     member_count: int
     member_limit: int
     is_paid_extended: bool
+    is_public: bool = False
+    is_member: bool = False
+    is_owner: bool = False
     created_at: str

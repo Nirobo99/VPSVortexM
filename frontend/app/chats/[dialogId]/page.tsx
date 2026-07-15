@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, type ChatMessage, type DialogDetail } from "@/lib/api";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import {
   decryptMessage as decryptE2E,
   encryptMessage as encryptE2E,
@@ -247,9 +248,14 @@ export default function ChatPage() {
           <div className="flex-1 min-w-0">
             <p className="font-medium truncate">
               {dialog.is_secret && "🔒 "}
-              {dialog.is_group
-                ? dialog.title || t("groups.title")
-                : other?.display_name || other?.username}
+              {dialog.is_group ? (
+                dialog.title || t("groups.title")
+              ) : (
+                <DisplayNameWithBadge
+                  name={other?.display_name || other?.username || "?"}
+                  verified={other?.is_official_verified}
+                />
+              )}
             </p>
             {dialog.is_group && dialog.member_count != null && (
               <p className="text-xs text-muted-foreground">{dialog.member_count} {t("groups.membersCount")}</p>

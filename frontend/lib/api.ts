@@ -138,6 +138,7 @@ export interface DialogParticipant {
   last_read_at?: string | null;
   is_online?: boolean;
   last_seen_at?: string | null;
+  is_official_verified?: boolean;
 }
 
 export interface DialogListItem {
@@ -168,6 +169,7 @@ export interface ChannelInfo {
   subscriber_count: number;
   subscription_price: number;
   is_member: boolean;
+  is_owner?: boolean;
   created_at: string;
 }
 
@@ -201,6 +203,9 @@ export interface GroupInfo {
   member_count: number;
   member_limit: number;
   is_paid_extended: boolean;
+  is_public?: boolean;
+  is_member?: boolean;
+  is_owner?: boolean;
   created_at: string;
 }
 
@@ -649,12 +654,12 @@ class ApiClient {
   }
 
   getMyPosts() {
-    return this.request<ProfilePost[]>("/users/me/posts", {}, true).catch(() => []);
+    return this.request<ProfilePost[]>("/users/me/posts", {}, true);
   }
 
   async createProfilePost(text: string | null, file?: File) {
     const form = new FormData();
-    if (text) form.append("text", text);
+    form.append("text", text?.trim() || "");
     if (file) form.append("file", file);
     const res = await this.requestRaw("/users/me/posts", { method: "POST", body: form });
     return res.json() as Promise<ProfilePost>;
@@ -896,6 +901,22 @@ class ApiClient {
     return this.request<ChannelInfo>(`/channels/${encodeURIComponent(slug)}/join`, { method: "POST" }, true);
   }
 
+  updateChannel(
+    slug: string,
+    data: {
+      title?: string;
+      description?: string | null;
+      visibility?: string;
+      subscription_price?: number;
+    }
+  ) {
+    return this.request<ChannelInfo>(
+      `/channels/${encodeURIComponent(slug)}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+      true
+    );
+  }
+
   leaveChannel(slug: string) {
     return this.request<{ message: string }>(`/channels/${encodeURIComponent(slug)}/leave`, { method: "POST" }, true);
   }
@@ -933,12 +954,36 @@ class ApiClient {
     return this.request<GroupInfo[]>("/groups", {}, true);
   }
 
-  createGroup(title: string, description: string, members: string[]) {
+  discoverGroups(q?: string) {
+    const query = q ? `?q=${encodeURIComponent(q)}` : "";
+    return this.request<GroupInfo[]>(`/groups/discover${query}`, {}, true);
+  }
+
+  createGroup(title: string, description: string, members: string[], isPublic = true) {
     return this.request<GroupInfo>(
       "/groups",
-      { method: "POST", body: JSON.stringify({ title, description, members }) },
+      { method: "POST", body: JSON.stringify({ title, description, members, is_public: isPublic }) },
       true
     );
+  }
+
+  updateGroup(
+    groupId: string,
+    data: { title?: string; description?: string | null; is_public?: boolean }
+  ) {
+    return this.request<GroupInfo>(
+      `/groups/${groupId}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+      true
+    );
+  }
+
+  joinGroup(groupId: string) {
+    return this.request<GroupInfo>(`/groups/${groupId}/join`, { method: "POST" }, true);
+  }
+
+  leaveGroup(groupId: string) {
+    return this.request<{ message: string }>(`/groups/${groupId}/leave`, { method: "POST" }, true);
   }
 
   extendGroup(groupId: string) {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Avatar, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { isAdminUser } from "@/lib/profileDisplay";
@@ -127,7 +128,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               admin={isAdminUser(user)}
               className="h-8 w-8 sm:h-9 sm:w-9"
             />
-            <span className="hidden md:inline text-sm font-medium truncate max-w-[120px]">{displayName}</span>
+            <span className="hidden md:inline text-sm font-medium truncate max-w-[140px]">
+              <DisplayNameWithBadge name={displayName} verified={user.is_official_verified} />
+            </span>
           </Link>
           <LanguageSwitcher />
           <Button variant="outline" size="sm" onClick={logout}>

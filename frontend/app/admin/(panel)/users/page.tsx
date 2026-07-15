@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Button, Card, CardContent, Input } from "@/components/ui";
 
 export default function AdminUsersPage() {
@@ -45,7 +46,13 @@ export default function AdminUsersPage() {
             <Card key={String(u.id)} className="cursor-pointer hover:border-primary/50" onClick={() => open(String(u.id))}>
               <CardContent className="py-3 flex justify-between">
                 <div>
-                  <p className="font-medium">{String(u.display_name || u.username)} {u.is_banned === true ? "🚫" : ""}</p>
+                  <p className="font-medium">
+                    <DisplayNameWithBadge
+                      name={String(u.display_name || u.username)}
+                      verified={u.is_official_verified === true}
+                    />{" "}
+                    {u.is_banned === true ? "🚫" : ""}
+                  </p>
                   <p className="text-sm text-muted-foreground">@{String(u.username)} · {String(u.email)}</p>
                 </div>
                 <span className="text-sm">{String(u.wallet_balance)} ₽</span>
@@ -57,7 +64,12 @@ export default function AdminUsersPage() {
         <Card>
           <CardContent className="pt-4 space-y-3">
             <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>←</Button>
-            <p className="font-medium">{String(selected.display_name || selected.username)}</p>
+            <p className="font-medium">
+              <DisplayNameWithBadge
+                name={String(selected.display_name || selected.username)}
+                verified={selected.is_official_verified === true}
+              />
+            </p>
             <p className="text-sm text-muted-foreground">{String(selected.email)} · {String(selected.wallet_balance)} ₽</p>
             <div className="flex flex-wrap gap-2">
               {can("users", "ban") && selected.is_banned !== true && (

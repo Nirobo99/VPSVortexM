@@ -121,10 +121,11 @@ class ChannelService:
                 is_member = m is not None
             if ch.visibility == ChannelVisibility.CLOSED and not is_member:
                 continue
-            out.append(self._channel_dict(ch, is_member))
+            is_owner = bool(user and ch.owner_id == user.id)
+            out.append(self._channel_dict(ch, is_member, is_owner))
         return out
 
-    def _channel_dict(self, ch: Channel, is_member: bool = False) -> dict:
+    def _channel_dict(self, ch: Channel, is_member: bool = False, is_owner: bool = False) -> dict:
         return {
             "id": str(ch.id),
             "slug": ch.slug,
@@ -137,6 +138,7 @@ class ChannelService:
             "subscriber_count": ch.subscriber_count,
             "subscription_price": ch.subscription_price,
             "is_member": is_member,
+            "is_owner": is_owner or False,
             "created_at": ch.created_at.isoformat(),
         }
 
@@ -146,11 +148,46 @@ class ChannelService:
         if not ch:
             raise ValueError("channel_not_found")
         is_member = False
+        is_owner = False
         if user:
             is_member = await self._get_member(ch.id, user.id) is not None
+            is_owner = ch.owner_id == user.id
         if ch.visibility == ChannelVisibility.CLOSED and not is_member:
             raise ValueError("channel_private")
-        return self._channel_dict(ch, is_member)
+        return self._channel_dict(ch, is_member, is_owner)
+
+    async def update_channel(
+        self,
+        user: User,
+        slug: str,
+        title: str | None = None,
+        description: str | None = None,
+        visibility: ChannelVisibility | None = None,
+        subscription_price: int | None = None,
+    ) -> dict:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        member = await self._get_member(ch.id, user.id)
+        if ch.owner_id != user.id and (not member or member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)):
+            raise ValueError("no_permission")
+        if title is not None:
+            cleaned = title.strip()
+            if not cleaned:
+                raise ValueError("invalid_title")
+            ch.title = cleaned
+        if description is not None:
+            ch.description = description.strip() or None
+        if visibility is not None:
+            ch.visibility = visibility
+        if subscription_price is not None:
+            if subscription_price < 0:
+                raise ValueError("invalid_price")
+            ch.subscription_price = subscription_price
+        await self.db.commit()
+        await self.db.refresh(ch)
+        return self._channel_dict(ch, True, ch.owner_id == user.id)
 
     async def join_channel(self, user: User, slug: str) -> dict:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))

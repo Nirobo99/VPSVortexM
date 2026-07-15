@@ -35,6 +35,7 @@ class DialogParticipantInfo(BaseModel):
     last_read_at: str | None = None
     is_online: bool = False
     last_seen_at: str | None = None
+    is_official_verified: bool = False
 
 
 class DialogListItem(BaseModel):

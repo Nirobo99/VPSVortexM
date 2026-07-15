@@ -56,8 +56,8 @@ export default function ProfilePage() {
     if (!user) return;
     Promise.all([
       api.getProfile(),
-      api.getMyStories(),
-      api.getMyPosts(),
+      api.getMyStories().catch(() => []),
+      api.getMyPosts().catch(() => []),
       api.getMyVerificationRequest().catch(() => null),
     ])
       .then(([p, s, wall, v]) => {
@@ -165,7 +165,10 @@ export default function ProfilePage() {
       setMessage({ type: "err", text: t("profile.photoRequired") });
       return;
     }
-    if (publishKind === "post" && !publishText.trim() && !file) return;
+    if (publishKind === "post" && !publishText.trim() && !file) {
+      setMessage({ type: "err", text: t("profile.emptyPost") });
+      return;
+    }
 
     setSaving(true);
     try {
@@ -326,7 +329,11 @@ export default function ProfilePage() {
                         type="button"
                         size="sm"
                         variant={publishKind === kind ? "default" : "outline"}
-                        onClick={() => setPublishKind(kind)}
+                        onClick={() => {
+                          setPublishKind(kind);
+                          setPublishText("");
+                          if (mediaRef.current) mediaRef.current.value = "";
+                        }}
                       >
                         {label}
                       </Button>
@@ -344,16 +351,20 @@ export default function ProfilePage() {
                     />
                   )}
 
-                  {(publishKind === "photo" || publishKind === "story") && (
+                  {(publishKind === "post" || publishKind === "photo" || publishKind === "story") && (
                     <div>
                       <Label htmlFor="publishMedia">
-                        {publishKind === "photo" ? t("profile.choosePhoto") : t("profile.chooseMedia")}
+                        {publishKind === "story"
+                          ? t("profile.chooseMedia")
+                          : publishKind === "photo"
+                            ? t("profile.choosePhoto")
+                            : t("profile.choosePostPhoto")}
                       </Label>
                       <input
                         id="publishMedia"
                         ref={mediaRef}
                         type="file"
-                        accept={publishKind === "photo" ? "image/*" : "image/*,video/*"}
+                        accept={publishKind === "story" ? "image/*,video/*" : "image/*"}
                         className="mt-1 block w-full text-sm"
                       />
                     </div>

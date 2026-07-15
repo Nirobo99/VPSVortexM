@@ -96,6 +96,8 @@
     "choosePhoto": "Выберите фото",
     "chooseMedia": "Выберите фото или видео",
     "photoRequired": "Выберите фото",
+    "emptyPost": "Добавьте текст или фото",
+    "choosePostPhoto": "Фото (необязательно)",
     "postAdded": "Пост опубликован",
     "photoAdded": "Фото опубликовано",
     "wall": "Записи",
@@ -275,7 +277,10 @@
     "broadcastPlaceholder": "Сообщение для @all",
     "broadcastSent": "Рассылка отправлена",
     "lockedPost": "Платный пост",
-    "unlock": "Разблокировать"
+    "unlock": "Разблокировать",
+    "settings": "Настройки",
+    "saveSettings": "Сохранить",
+    "settingsSaved": "Канал обновлён"
   },
   "groups": {
     "title": "Беседы",
@@ -285,7 +290,17 @@
     "membersHint": "username через запятую",
     "membersCount": "участников",
     "extend": "Расширить до 1000 (500 ₽)",
-    "empty": "Бесед пока нет"
+    "empty": "Бесед пока нет",
+    "search": "Найти беседу",
+    "searchHint": "Поиск по названию",
+    "join": "Вступить",
+    "public": "Публичная",
+    "private": "Закрытая",
+    "discoverEmpty": "Публичных бесед не найдено",
+    "myGroups": "Мои беседы",
+    "settings": "Настройки",
+    "save": "Сохранить",
+    "saved": "Беседа обновлена"
   },
   "wallet": {
     "title": "Кошелёк",

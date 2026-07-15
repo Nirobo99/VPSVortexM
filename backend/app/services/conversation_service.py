@@ -22,6 +22,7 @@ class ConversationService:
         title: str,
         description: str | None,
         member_usernames: list[str],
+        is_public: bool = True,
     ) -> dict:
         if len(member_usernames) > DEFAULT_MEMBER_LIMIT - 1:
             raise ValueError("member_limit_exceeded")
@@ -32,6 +33,7 @@ class ConversationService:
             description=description,
             owner_id=owner.id,
             member_limit=DEFAULT_MEMBER_LIMIT,
+            is_public=is_public,
         )
         self.db.add(dialog)
         await self.db.flush()
@@ -79,7 +81,7 @@ class ConversationService:
             {"type": "group_invite", "data": {"dialog_id": str(dialog.id), "title": title}},
         )
 
-        return await self._group_dict(dialog)
+        return await self._group_dict(dialog, viewer_id=owner.id)
 
     async def _member_ids(self, dialog_id: uuid.UUID) -> list[uuid.UUID]:
         result = await self.db.execute(
@@ -96,27 +98,112 @@ class ConversationService:
         )
         items = []
         for dialog, count in result.all():
-            d = await self._group_dict(dialog, count)
+            d = await self._group_dict(dialog, count, viewer_id=user.id)
             items.append(d)
         return items
 
+    async def search_public_groups(self, user: User, query: str | None = None) -> list[dict]:
+        q = select(Dialog).where(Dialog.dialog_type == DialogType.GROUP, Dialog.is_public.is_(True))
+        if query:
+            like = f"%{query.strip()}%"
+            q = q.where(
+                Dialog.title.ilike(like) | Dialog.description.ilike(like)
+            )
+        result = await self.db.execute(q.order_by(Dialog.created_at.desc()).limit(50))
+        items = []
+        for dialog in result.scalars().all():
+            items.append(await self._group_dict(dialog, viewer_id=user.id))
+        return items
+
     async def get_group(self, user: User, dialog_id: uuid.UUID) -> dict:
-        await self.messaging._require_participant(dialog_id, user.id)
         result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP))
         dialog = result.scalar_one_or_none()
         if not dialog:
             raise ValueError("group_not_found")
+        is_member = await self.messaging._get_participant(dialog_id, user.id) is not None
+        if not is_member and not dialog.is_public:
+            raise ValueError("group_private")
         count_res = await self.db.execute(
             select(func.count()).select_from(DialogParticipant).where(DialogParticipant.dialog_id == dialog_id)
         )
-        return await self._group_dict(dialog, count_res.scalar() or 0)
+        return await self._group_dict(dialog, count_res.scalar() or 0, viewer_id=user.id)
 
-    async def _group_dict(self, dialog: Dialog, member_count: int | None = None) -> dict:
+    async def join_group(self, user: User, dialog_id: uuid.UUID) -> dict:
+        result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP))
+        dialog = result.scalar_one_or_none()
+        if not dialog:
+            raise ValueError("group_not_found")
+        if not dialog.is_public:
+            raise ValueError("group_private")
+        existing = await self.messaging._get_participant(dialog_id, user.id)
+        if existing:
+            return await self.get_group(user, dialog_id)
+        count_res = await self.db.execute(
+            select(func.count()).select_from(DialogParticipant).where(DialogParticipant.dialog_id == dialog_id)
+        )
+        current = count_res.scalar() or 0
+        if current >= dialog.member_limit:
+            raise ValueError("member_limit_exceeded")
+        self.db.add(
+            DialogParticipant(dialog_id=dialog_id, user_id=user.id, role="member", can_post=True)
+        )
+        await self.db.commit()
+        return await self.get_group(user, dialog_id)
+
+    async def leave_group(self, user: User, dialog_id: uuid.UUID) -> None:
+        result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP))
+        dialog = result.scalar_one_or_none()
+        if not dialog:
+            raise ValueError("group_not_found")
+        participant = await self.messaging._get_participant(dialog_id, user.id)
+        if not participant:
+            raise ValueError("not_member")
+        if participant.role == "owner" or dialog.owner_id == user.id:
+            raise ValueError("owner_cannot_leave")
+        await self.db.delete(participant)
+        await self.db.commit()
+
+    async def update_group(
+        self,
+        user: User,
+        dialog_id: uuid.UUID,
+        title: str | None = None,
+        description: str | None = None,
+        is_public: bool | None = None,
+    ) -> dict:
+        participant = await self.messaging._require_participant(dialog_id, user.id)
+        if not participant.is_admin and participant.role != "owner":
+            raise ValueError("no_permission")
+        result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP))
+        dialog = result.scalar_one_or_none()
+        if not dialog:
+            raise ValueError("group_not_found")
+        if title is not None:
+            cleaned = title.strip()
+            if not cleaned:
+                raise ValueError("invalid_title")
+            dialog.title = cleaned
+        if description is not None:
+            dialog.description = description.strip() or None
+        if is_public is not None:
+            dialog.is_public = is_public
+        await self.db.commit()
+        return await self.get_group(user, dialog_id)
+
+    async def _group_dict(
+        self,
+        dialog: Dialog,
+        member_count: int | None = None,
+        viewer_id: uuid.UUID | None = None,
+    ) -> dict:
         if member_count is None:
             count_res = await self.db.execute(
                 select(func.count()).select_from(DialogParticipant).where(DialogParticipant.dialog_id == dialog.id)
             )
             member_count = count_res.scalar() or 0
+        is_member = False
+        if viewer_id is not None:
+            is_member = await self.messaging._get_participant(dialog.id, viewer_id) is not None
         return {
             "id": str(dialog.id),
             "title": dialog.title,
@@ -126,6 +213,9 @@ class ConversationService:
             "member_count": member_count,
             "member_limit": dialog.member_limit,
             "is_paid_extended": dialog.is_paid_extended,
+            "is_public": bool(dialog.is_public),
+            "is_member": is_member,
+            "is_owner": bool(viewer_id and dialog.owner_id == viewer_id),
             "created_at": dialog.created_at.isoformat(),
         }
 

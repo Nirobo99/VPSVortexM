@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, type DialogListItem } from "@/lib/api";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Avatar, Button, Card, CardContent, Input } from "@/components/ui";
 
 export function ChatsPanel() {
@@ -138,7 +139,10 @@ export function ChatsPanel() {
               <div className="flex items-center justify-between">
                 <span className="font-medium truncate">
                   {d.is_secret && "🔒 "}
-                  {d.other_user?.display_name || d.other_user?.username || "?"}
+                  <DisplayNameWithBadge
+                    name={d.other_user?.display_name || d.other_user?.username || "?"}
+                    verified={d.other_user?.is_official_verified}
+                  />
                 </span>
                 {d.last_message_at && (
                   <span className="text-xs text-muted-foreground shrink-0 ml-2">

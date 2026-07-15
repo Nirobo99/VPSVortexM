@@ -98,18 +98,26 @@
     "comment_added": "Comment added",
     "post_pinned": "Post pinned",
     "member_updated": "Member permissions updated",
-    "verified": "Verification status updated"
+    "verified": "Verification status updated",
+    "updated": "Channel updated",
+    "invalid_title": "Channel title is required",
+    "invalid_price": "Invalid subscription price"
   },
   "groups": {
     "member_limit_exceeded": "Member limit exceeded (500)",
     "user_not_found": "User not found",
     "user_blocked": "User blocked",
     "group_not_found": "Group not found",
+    "group_private": "This group is private",
     "no_permission": "Insufficient permissions",
     "not_member": "You are not a member",
     "already_extended": "Limit already extended",
     "insufficient_balance": "Insufficient balance",
-    "admin_updated": "Admin permissions updated"
+    "admin_updated": "Admin permissions updated",
+    "owner_cannot_leave": "Owner cannot leave the group",
+    "left": "You left the group",
+    "invalid_title": "Group title is required",
+    "updated": "Group updated"
   },
   "wallet": {
     "invalid_amount": "Amount must be between 10 and 100,000 ₽",

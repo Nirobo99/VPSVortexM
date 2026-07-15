@@ -14,6 +14,7 @@ from app.schemas.channels import (
     BroadcastRequest,
     ChannelCreateRequest,
     ChannelResponse,
+    ChannelUpdateRequest,
     CommentCreateRequest,
     MemberRoleRequest,
     PollVoteRequest,
@@ -44,7 +45,7 @@ async def create_channel(
         raise HTTPException(status_code=400, detail=t("channels.invalid_visibility", lang))
     service = ChannelService(db)
     ch = await service.create_channel(user, body.title, body.description, visibility, body.subscription_price)
-    return ChannelResponse(**service._channel_dict(ch, True))
+    return ChannelResponse(**service._channel_dict(ch, True, True))
 
 
 @router.get("", response_model=list[ChannelResponse])
@@ -71,6 +72,36 @@ async def get_channel(
     except ValueError as e:
         code = 404 if e.args[0] != "channel_private" else 403
         raise HTTPException(status_code=code, detail=t(f"channels.{e}", lang))
+    return ChannelResponse(**data)
+
+
+@router.patch("/{slug}", response_model=ChannelResponse)
+async def update_channel(
+    slug: str,
+    body: ChannelUpdateRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    visibility = None
+    if body.visibility is not None:
+        try:
+            visibility = ChannelVisibility(body.visibility)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=t("channels.invalid_visibility", lang))
+    service = ChannelService(db)
+    try:
+        data = await service.update_channel(
+            user,
+            slug,
+            title=body.title,
+            description=body.description,
+            visibility=visibility,
+            subscription_price=body.subscription_price,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     return ChannelResponse(**data)
 
 

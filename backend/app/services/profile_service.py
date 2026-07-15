@@ -235,21 +235,34 @@ class ProfileService:
         content_type: str | None,
     ) -> ProfilePost:
         media_url = None
-        media_type = ProfilePostMediaType.TEXT
-        if content and content_type:
-            media_url = StorageService.upload_profile_post_media(user.id, content, content_type)
-            media_type = ProfilePostMediaType.IMAGE
-        if not (text and text.strip()) and not media_url:
+        media_type = ProfilePostMediaType.TEXT.value
+        if content:
+            mime = (content_type or "image/jpeg").split(";")[0].strip().lower()
+            if not mime.startswith("image/"):
+                raise ValueError("invalid_image_type")
+            try:
+                media_url = StorageService.upload_profile_post_media(user.id, content, mime)
+            except ValueError as e:
+                raise ValueError(str(e) if str(e) else "invalid_image_type") from None
+            media_type = ProfilePostMediaType.IMAGE.value
+        cleaned = text.strip() if text and text.strip() else None
+        if not cleaned and not media_url:
             raise ValueError("empty_post")
         post = ProfilePost(
             user_id=user.id,
             media_url=media_url,
             media_type=media_type,
-            text=text.strip() if text else None,
+            text=cleaned,
         )
         self.db.add(post)
         await self.db.flush()
-        await self.gamification.add_points(user, "story_post")
+        await self.db.refresh(post)
+        await self.db.commit()
+        await self.db.refresh(post)
+        try:
+            await self.gamification.add_points(user, "story_post")
+        except Exception:
+            pass
         return post
 
     async def get_user_posts(self, user_id: uuid.UUID) -> list[ProfilePost]:

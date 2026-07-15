@@ -53,6 +53,7 @@ def _participant_info(user, e2e_key=None, last_read_at=None, presence=None) -> D
         last_read_at=last_read_at,
         is_online=pres.get("is_online", False),
         last_seen_at=pres.get("last_seen_at"),
+        is_official_verified=bool(getattr(user, "is_official_verified", False)),
     )
 
 
