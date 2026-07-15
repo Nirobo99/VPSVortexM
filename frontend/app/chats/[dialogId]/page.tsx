@@ -250,6 +250,13 @@ export default function ChatPage() {
               {dialog.is_secret && "🔒 "}
               {dialog.is_group ? (
                 dialog.title || t("groups.title")
+              ) : other?.username ? (
+                <Link href={`/users/${other.username}`} className="hover:underline">
+                  <DisplayNameWithBadge
+                    name={other.display_name || other.username}
+                    verified={other.is_official_verified}
+                  />
+                </Link>
               ) : (
                 <DisplayNameWithBadge
                   name={other?.display_name || other?.username || "?"}

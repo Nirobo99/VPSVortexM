@@ -49,7 +49,10 @@ async def create_channel(
     except ValueError:
         raise HTTPException(status_code=400, detail=t("channels.invalid_visibility", lang))
     service = ChannelService(db)
-    ch = await service.create_channel(user, body.title, body.description, visibility, body.subscription_price)
+    try:
+        ch = await service.create_channel(user, body.title, body.description, visibility, body.subscription_price)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     member = await service._get_member(ch.id, user.id)
     return ChannelResponse(**service._channel_dict(ch, True, True, member))
 

@@ -277,6 +277,8 @@
     "postPlaceholder": "Текст поста...",
     "pollOptionsHint": "Варианты через |",
     "pollOptionsRequired": "Добавьте минимум два варианта",
+    "emptyPost": "Введите текст публикации",
+    "verificationOnlyViaAdmin": "Галочка верификации не выдаётся при создании — только после одобрения заявки администратором.",
     "publish": "Опубликовать",
     "broadcast": "Рассылка",
     "broadcastPlaceholder": "Сообщение для @all",

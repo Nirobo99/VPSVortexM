@@ -54,6 +54,9 @@ export default function NewChannelPage() {
         <Button onClick={submit} disabled={saving || !title.trim()}>
           {t("channels.create")}
         </Button>
+        <p className="text-xs text-muted-foreground">
+          {t("channels.verificationOnlyViaAdmin")}
+        </p>
       </div>
     </AppShell>
   );

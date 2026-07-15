@@ -61,7 +61,7 @@ export default function ProfilePage() {
     Promise.all([
       api.getProfile(),
       api.getMyStories().catch(() => []),
-      api.getMyPosts().catch(() => []),
+      api.getMyPosts(),
       api.getMyVerificationRequest().catch(() => null),
     ])
       .then(([p, s, wall, v]) => {

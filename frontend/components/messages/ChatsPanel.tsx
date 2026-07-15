@@ -123,41 +123,52 @@ export function ChatsPanel() {
 
       <div className="space-y-1">
         {dialogs.map((d) => (
-          <Link
+          <div
             key={d.id}
-            href={`/chats/${d.id}`}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
           >
-            {d.other_user && (
+            {d.other_user?.username ? (
+              <Link href={`/users/${d.other_user.username}`} className="shrink-0">
+                <Avatar
+                  src={d.other_user.avatar_url}
+                  name={d.other_user.display_name || d.other_user.username}
+                  className="h-12 w-12"
+                />
+              </Link>
+            ) : d.other_user ? (
               <Avatar
                 src={d.other_user.avatar_url}
                 name={d.other_user.display_name || d.other_user.username}
                 className="h-12 w-12"
               />
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="font-medium truncate">
-                  {d.is_secret && "🔒 "}
-                  <DisplayNameWithBadge
-                    name={d.other_user?.display_name || d.other_user?.username || "?"}
-                    verified={d.other_user?.is_official_verified}
-                  />
-                </span>
-                {d.last_message_at && (
-                  <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                    {new Date(d.last_message_at).toLocaleDateString()}
+            ) : null}
+            <Link href={`/chats/${d.id}`} className="flex-1 min-w-0 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium truncate">
+                    {d.is_secret && "🔒 "}
+                    <DisplayNameWithBadge
+                      name={d.other_user?.display_name || d.other_user?.username || "?"}
+                      verified={d.other_user?.is_official_verified}
+                    />
                   </span>
-                )}
+                  {d.last_message_at && (
+                    <span className="text-xs text-muted-foreground shrink-0 ml-2">
+                      {new Date(d.last_message_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground truncate">
+                  {d.last_message_preview || t("chats.noMessages")}
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground truncate">{d.last_message_preview || t("chats.noMessages")}</p>
-            </div>
-            {d.unread_count > 0 && (
-              <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full shrink-0">
-                {d.unread_count}
-              </span>
-            )}
-          </Link>
+              {d.unread_count > 0 && (
+                <span className="bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full shrink-0">
+                  {d.unread_count}
+                </span>
+              )}
+            </Link>
+          </div>
         ))}
         {dialogs.length === 0 && <p className="text-center text-muted-foreground py-8">{t("chats.empty")}</p>}
       </div>

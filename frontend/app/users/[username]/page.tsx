@@ -56,7 +56,7 @@ export default function PublicProfilePage() {
         setProfile(p);
         const [s, wall] = await Promise.all([
           api.getUserStories(username).catch(() => []),
-          api.getUserPosts(username).catch(() => []),
+          api.getUserPosts(username),
         ]);
         setStories(s);
         setPosts(wall);
@@ -93,7 +93,7 @@ export default function PublicProfilePage() {
     setOpeningChat(true);
     try {
       const dialog = await api.createDialog(profile.username);
-      router.push(`/messages?dialog=${dialog.id}`);
+      router.push(`/chats/${dialog.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("auth.error"));
     } finally {

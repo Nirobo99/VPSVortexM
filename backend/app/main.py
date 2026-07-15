@@ -68,6 +68,58 @@ async def lifespan(app: FastAPI):
                         ALTER TABLE users
                           ADD COLUMN is_official_verified boolean NOT NULL DEFAULT false;
                       END IF;
+
+                      IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'profile_posts'
+                      ) THEN
+                        CREATE TABLE profile_posts (
+                          id uuid PRIMARY KEY,
+                          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                          media_url varchar(512),
+                          media_type varchar(16) NOT NULL DEFAULT 'text',
+                          text text,
+                          created_at timestamptz NOT NULL DEFAULT now()
+                        );
+                        CREATE INDEX IF NOT EXISTS ix_profile_posts_user_id ON profile_posts (user_id);
+                      END IF;
+
+                      IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'profile_posts'
+                          AND column_name = 'media_type'
+                          AND udt_name = 'profilepostmediatype'
+                      ) THEN
+                        ALTER TABLE profile_posts
+                          ALTER COLUMN media_type TYPE varchar(16)
+                          USING lower(media_type::text);
+                      END IF;
+
+                      IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'profile_post_comments'
+                      ) THEN
+                        CREATE TABLE profile_post_comments (
+                          id uuid PRIMARY KEY,
+                          post_id uuid NOT NULL REFERENCES profile_posts(id) ON DELETE CASCADE,
+                          author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                          content text NOT NULL,
+                          created_at timestamptz NOT NULL DEFAULT now()
+                        );
+                        CREATE INDEX IF NOT EXISTS ix_profile_post_comments_post_id
+                          ON profile_post_comments (post_id);
+                      END IF;
+
+                      IF EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'channels'
+                      ) AND NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'channels' AND column_name = 'is_verified'
+                      ) THEN
+                        ALTER TABLE channels
+                          ADD COLUMN is_verified boolean NOT NULL DEFAULT false;
+                      END IF;
                     END $$;
                     """
                 )

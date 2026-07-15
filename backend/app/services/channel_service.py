@@ -39,6 +39,16 @@ def _slugify(text: str) -> str:
     return s[:64] or "channel"
 
 
+_FAKE_BADGE_CHARS = re.compile(r"[✓✔✅☑🟊★✪]")
+
+
+def _clean_channel_title(title: str) -> str:
+    """Remove fake verification glyphs; real badge comes only from is_verified."""
+    cleaned = _FAKE_BADGE_CHARS.sub("", title or "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
 class ChannelService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -84,14 +94,19 @@ class ChannelService:
             slug = f"{base_slug}-{n}"
             n += 1
 
+        cleaned_title = _clean_channel_title(title)
+        if not cleaned_title:
+            raise ValueError("invalid_title")
+
         channel = Channel(
-            title=title,
+            title=cleaned_title,
             slug=slug,
             description=description,
             owner_id=user.id,
             visibility=visibility,
             subscription_price=subscription_price,
             subscriber_count=1,
+            is_verified=False,
         )
         self.db.add(channel)
         await self.db.flush()
@@ -136,12 +151,18 @@ class ChannelService:
         member: ChannelMember | None = None,
     ) -> dict:
         my_role = member.role.value if member else None
-        can_post = bool(member and member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN))
+        can_post = bool(
+            is_owner
+            or (member and member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN))
+        )
         can_manage_members = bool(
-            member
-            and (
-                member.role == ChannelMemberRole.OWNER
-                or member.can_manage_members
+            is_owner
+            or (
+                member
+                and (
+                    member.role == ChannelMemberRole.OWNER
+                    or member.can_manage_members
+                )
             )
         )
         return {
@@ -196,7 +217,7 @@ class ChannelService:
         if ch.owner_id != user.id and (not member or member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)):
             raise ValueError("no_permission")
         if title is not None:
-            cleaned = title.strip()
+            cleaned = _clean_channel_title(title)
             if not cleaned:
                 raise ValueError("invalid_title")
             ch.title = cleaned
@@ -280,11 +301,24 @@ class ChannelService:
         ch = result.scalar_one_or_none()
         if not ch:
             raise ValueError("channel_not_found")
-        member = await self._require_member(ch.id, user.id)
-        # Only owner and admins can publish channel posts.
-        if member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
-            raise ValueError("no_permission")
-
+        member = await self._get_member(ch.id, user.id)
+        is_owner = ch.owner_id == user.id
+        # Owner can always publish even if membership row is missing/out of sync.
+        if not is_owner:
+            if not member:
+                raise ValueError("not_a_member")
+            if member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
+                raise ValueError("no_permission")
+        elif not member:
+            member = ChannelMember(
+                channel_id=ch.id,
+                user_id=user.id,
+                role=ChannelMemberRole.OWNER,
+                **self._admin_permissions(),
+            )
+            self.db.add(member)
+            await self.db.flush()
+            ch.subscriber_count = max(ch.subscriber_count, 1)
         media_url = None
         if media_content and media_type:
             media_url = StorageService.upload_file(

@@ -289,14 +289,9 @@ async def delete_story(
     return MessageResponse(message=t("profile.story_deleted", lang))
 
 
-def _post_response(post) -> ProfilePostResponse:
+def _post_response(post, comments_count: int = 0) -> ProfilePostResponse:
     mt = post.media_type
     media_type = (mt.value if hasattr(mt, "value") else str(mt or "text")).lower()
-    comments_count = 0
-    try:
-        comments_count = len(post.comments) if post.comments is not None else 0
-    except Exception:
-        comments_count = 0
     return ProfilePostResponse(
         id=str(post.id),
         media_url=StorageService.generate_presigned_url(post.media_url),
@@ -307,14 +302,19 @@ def _post_response(post) -> ProfilePostResponse:
     )
 
 
+async def _posts_with_counts(service: ProfileService, posts) -> list[ProfilePostResponse]:
+    out: list[ProfilePostResponse] = []
+    for p in posts:
+        count = await service.count_post_comments(p.id)
+        out.append(_post_response(p, count))
+    return out
+
+
 @router.get("/me/posts", response_model=list[ProfilePostResponse])
 async def my_posts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     service = ProfileService(db)
-    try:
-        posts = await service.get_user_posts(user.id)
-    except Exception:
-        return []
-    return [_post_response(p) for p in posts]
+    posts = await service.get_user_posts(user.id)
+    return await _posts_with_counts(service, posts)
 
 
 @router.post("/me/posts", response_model=ProfilePostResponse, status_code=status.HTTP_201_CREATED)
@@ -339,7 +339,7 @@ async def create_profile_post(
         raise HTTPException(status_code=400, detail=t(f"profile.{key}", lang))
     except Exception:
         raise HTTPException(status_code=500, detail=t("errors.internal", lang))
-    return _post_response(post)
+    return _post_response(post, 0)
 
 
 @router.delete("/me/posts/{post_id}", response_model=MessageResponse)
@@ -404,7 +404,7 @@ async def user_posts(
         posts = await service.get_user_posts(uuid.UUID(profile["id"]))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=t(f"profile.{e}", lang))
-    return [_post_response(p) for p in posts]
+    return await _posts_with_counts(service, posts)
 
 
 @router.get("/{username}/stories", response_model=list[StoryCreateResponse])

@@ -14,6 +14,7 @@ import {
   type ChannelVerificationRequest,
 } from "@/lib/api";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
+import { VerifiedBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
 
 export default function ChannelPage() {
@@ -62,7 +63,12 @@ export default function ChannelPage() {
       router.push("/messages?tab=channels");
       return;
     }
-    api.getChannelPosts(slug).then(setPosts).catch(() => {});
+    try {
+      const list = await api.getChannelPosts(slug);
+      setPosts(list);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t("auth.error"));
+    }
   };
 
   useEffect(() => {
@@ -89,6 +95,10 @@ export default function ChannelPage() {
 
   const publish = async () => {
     setMessage(null);
+    if (postType !== "poll" && !postText.trim()) {
+      setMessage(t("channels.emptyPost"));
+      return;
+    }
     if (postType === "poll") {
       const options = pollOptions
         .split("|")
@@ -102,7 +112,7 @@ export default function ChannelPage() {
     try {
       const form = new FormData();
       form.append("post_type", postType);
-      if (postText) form.append("content", postText);
+      if (postText.trim()) form.append("content", postText.trim());
       if (postType === "poll") {
         const options = pollOptions
           .split("|")
@@ -110,9 +120,10 @@ export default function ChannelPage() {
           .filter(Boolean);
         form.append("poll_options", options.join("|"));
       }
-      await api.createChannelPost(slug, form);
+      const created = await api.createChannelPost(slug, form);
       setPostText("");
       setPollOptions("");
+      setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
@@ -205,8 +216,8 @@ export default function ChannelPage() {
   };
 
   const canManage = !!channel && (channel.is_owner || (user && channel.owner_id === user.id));
-  const canPost = !!channel?.can_post;
-  const canManageMembers = !!channel?.can_manage_members;
+  const canPost = !!channel && (channel.can_post || canManage);
+  const canManageMembers = !!channel?.can_manage_members || canManage;
 
   if (loading || !channel) {
     return (
@@ -222,9 +233,9 @@ export default function ChannelPage() {
         <Link href="/messages?tab=channels" className="text-sm text-muted-foreground hover:text-foreground">
           ← {t("channels.title")}
         </Link>
-        <h1 className="text-2xl font-semibold mt-2 flex items-center gap-2">
-          {channel.is_verified && <span className="text-primary">✓</span>}
-          {channel.title}
+        <h1 className="text-2xl font-semibold mt-2 flex items-center gap-2 min-w-0">
+          <span className="truncate">{channel.title}</span>
+          {channel.is_verified && <VerifiedBadge className="h-6 w-6 text-sm" />}
         </h1>
         <p className="text-muted-foreground text-sm">
           @{channel.slug} · {channel.subscriber_count} {t("channels.subscribers")}
@@ -446,7 +457,9 @@ export default function ChannelPage() {
           <Card key={post.id} className={post.is_pinned ? "border-primary" : ""}>
             <CardContent className="pt-4">
               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                <span>@{post.author_username}</span>
+                <Link href={`/users/${post.author_username}`} className="hover:underline">
+                  @{post.author_username}
+                </Link>
                 {post.is_announcement && <span className="text-primary">📢</span>}
                 {post.is_pinned && <span>📌</span>}
               </div>

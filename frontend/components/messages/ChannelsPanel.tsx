@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { api, type ChannelInfo } from "@/lib/api";
+import { VerifiedBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Button, Card, CardContent, Input } from "@/components/ui";
 
 export function ChannelsPanel() {
@@ -44,9 +45,9 @@ export function ChannelsPanel() {
             <Card className="hover:border-primary/50 transition-colors">
               <CardContent className="py-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">
-                    {ch.is_verified && <span className="text-primary mr-1">✓</span>}
-                    {ch.title}
+                  <p className="font-medium flex items-center gap-1.5 min-w-0">
+                    <span className="truncate">{ch.title}</span>
+                    {ch.is_verified && <VerifiedBadge className="h-5 w-5 text-[11px]" />}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     @{ch.slug} · {ch.subscriber_count} {t("channels.subscribers")}

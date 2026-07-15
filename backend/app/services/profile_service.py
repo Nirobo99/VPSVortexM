@@ -5,9 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 import qrcode
 import qrcode.image.svg
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.i18n import t
@@ -266,22 +265,29 @@ class ProfileService:
         return post
 
     async def get_user_posts(self, user_id: uuid.UUID) -> list[ProfilePost]:
-        # Prefer loading comments for counts; fall back if table is not migrated yet.
+        # Do not selectinload comments here: missing migration would abort the
+        # transaction and make a fallback query fail too (posts look "lost").
+        result = await self.db.execute(
+            select(ProfilePost)
+            .where(ProfilePost.user_id == user_id)
+            .order_by(ProfilePost.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def count_post_comments(self, post_id: uuid.UUID) -> int:
         try:
             result = await self.db.execute(
-                select(ProfilePost)
-                .where(ProfilePost.user_id == user_id)
-                .options(selectinload(ProfilePost.comments))
-                .order_by(ProfilePost.created_at.desc())
+                select(func.count())
+                .select_from(ProfilePostComment)
+                .where(ProfilePostComment.post_id == post_id)
             )
-            return list(result.scalars().unique().all())
+            return int(result.scalar() or 0)
         except Exception:
-            result = await self.db.execute(
-                select(ProfilePost)
-                .where(ProfilePost.user_id == user_id)
-                .order_by(ProfilePost.created_at.desc())
-            )
-            return list(result.scalars().all())
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return 0
 
     async def delete_profile_post(self, user: User, post_id: uuid.UUID) -> None:
         result = await self.db.execute(

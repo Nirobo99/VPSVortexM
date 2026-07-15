@@ -277,6 +277,8 @@
     "postPlaceholder": "Post text...",
     "pollOptionsHint": "Options separated by |",
     "pollOptionsRequired": "Add at least two poll options",
+    "emptyPost": "Enter post text",
+    "verificationOnlyViaAdmin": "The verification badge is not granted on create — only after an admin approves your request.",
     "publish": "Publish",
     "broadcast": "Broadcast",
     "broadcastPlaceholder": "Message for @all",
