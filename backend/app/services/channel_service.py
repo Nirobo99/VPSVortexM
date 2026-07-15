@@ -14,6 +14,8 @@ from app.models.channels import (
     ChannelMemberRole,
     ChannelPost,
     ChannelProduct,
+    ChannelVerificationRequest,
+    ChannelVerificationRequestStatus,
     ChannelVisibility,
     PollOption,
     PollVote,
@@ -116,16 +118,32 @@ class ChannelService:
         out = []
         for ch in channels:
             is_member = False
+            member = None
             if user:
-                m = await self._get_member(ch.id, user.id)
-                is_member = m is not None
+                member = await self._get_member(ch.id, user.id)
+                is_member = member is not None
             if ch.visibility == ChannelVisibility.CLOSED and not is_member:
                 continue
             is_owner = bool(user and ch.owner_id == user.id)
-            out.append(self._channel_dict(ch, is_member, is_owner))
+            out.append(self._channel_dict(ch, is_member, is_owner, member))
         return out
 
-    def _channel_dict(self, ch: Channel, is_member: bool = False, is_owner: bool = False) -> dict:
+    def _channel_dict(
+        self,
+        ch: Channel,
+        is_member: bool = False,
+        is_owner: bool = False,
+        member: ChannelMember | None = None,
+    ) -> dict:
+        my_role = member.role.value if member else None
+        can_post = bool(member and member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN))
+        can_manage_members = bool(
+            member
+            and (
+                member.role == ChannelMemberRole.OWNER
+                or member.can_manage_members
+            )
+        )
         return {
             "id": str(ch.id),
             "slug": ch.slug,
@@ -139,6 +157,9 @@ class ChannelService:
             "subscription_price": ch.subscription_price,
             "is_member": is_member,
             "is_owner": is_owner or False,
+            "my_role": my_role,
+            "can_post": can_post,
+            "can_manage_members": can_manage_members,
             "created_at": ch.created_at.isoformat(),
         }
 
@@ -147,14 +168,16 @@ class ChannelService:
         ch = result.scalar_one_or_none()
         if not ch:
             raise ValueError("channel_not_found")
+        member = None
         is_member = False
         is_owner = False
         if user:
-            is_member = await self._get_member(ch.id, user.id) is not None
+            member = await self._get_member(ch.id, user.id)
+            is_member = member is not None
             is_owner = ch.owner_id == user.id
         if ch.visibility == ChannelVisibility.CLOSED and not is_member:
             raise ValueError("channel_private")
-        return self._channel_dict(ch, is_member, is_owner)
+        return self._channel_dict(ch, is_member, is_owner, member)
 
     async def update_channel(
         self,
@@ -187,7 +210,8 @@ class ChannelService:
             ch.subscription_price = subscription_price
         await self.db.commit()
         await self.db.refresh(ch)
-        return self._channel_dict(ch, True, ch.owner_id == user.id)
+        member = await self._get_member(ch.id, user.id)
+        return self._channel_dict(ch, True, ch.owner_id == user.id, member)
 
     async def join_channel(self, user: User, slug: str) -> dict:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
@@ -219,7 +243,8 @@ class ChannelService:
         )
         ch.subscriber_count += 1
         await self.db.commit()
-        return self._channel_dict(ch, True)
+        member = await self._get_member(ch.id, user.id)
+        return self._channel_dict(ch, True, False, member)
 
     async def leave_channel(self, user: User, slug: str) -> None:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
@@ -256,7 +281,8 @@ class ChannelService:
         if not ch:
             raise ValueError("channel_not_found")
         member = await self._require_member(ch.id, user.id)
-        if not member.can_post and member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
+        # Only owner and admins can publish channel posts.
+        if member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
             raise ValueError("no_permission")
 
         media_url = None
@@ -264,6 +290,10 @@ class ChannelService:
             media_url = StorageService.upload_file(
                 media_content, f"channels/{ch.id}/posts/{uuid.uuid4()}", media_type
             )
+
+        cleaned_options = [o.strip() for o in (poll_options or []) if o and o.strip()]
+        if post_type in (PostType.POLL, PostType.QUIZ) and len(cleaned_options) < 2:
+            raise ValueError("poll_options_required")
 
         post = ChannelPost(
             channel_id=ch.id,
@@ -279,8 +309,8 @@ class ChannelService:
         self.db.add(post)
         await self.db.flush()
 
-        if post_type in (PostType.POLL, PostType.QUIZ) and poll_options:
-            for i, opt_text in enumerate(poll_options):
+        if post_type in (PostType.POLL, PostType.QUIZ):
+            for i, opt_text in enumerate(cleaned_options):
                 self.db.add(
                     PollOption(
                         post_id=post.id,
@@ -345,12 +375,21 @@ class ChannelService:
         author_res = await self.db.execute(select(User).where(User.id == post.author_id))
         author = author_res.scalar_one()
 
+        my_vote_option_id = None
+        if viewer and post.post_type in (PostType.POLL, PostType.QUIZ):
+            vote_res = await self.db.execute(
+                select(PollVote).where(PollVote.post_id == post.id, PollVote.user_id == viewer.id)
+            )
+            vote = vote_res.scalar_one_or_none()
+            if vote:
+                my_vote_option_id = str(vote.option_id)
+
         return {
             "id": str(post.id),
             "channel_id": str(post.channel_id),
             "author_id": str(post.author_id),
             "author_username": author.username,
-            "post_type": post.post_type.value,
+            "post_type": post.post_type.value if hasattr(post.post_type, "value") else str(post.post_type),
             "content": post.content if unlocked else None,
             "content_locked": post.is_paid and not unlocked,
             "price": post.price if post.is_paid else 0,
@@ -360,14 +399,22 @@ class ChannelService:
             "is_announcement": post.is_announcement,
             "views_count": post.views_count,
             "poll_options": [
-                {"id": str(o.id), "text": o.text, "votes_count": o.votes_count, "is_correct": o.is_correct if post.post_type == PostType.QUIZ and unlocked else False}
-                for o in post.poll_options
+                {
+                    "id": str(o.id),
+                    "text": o.text,
+                    "votes_count": o.votes_count,
+                    "is_correct": o.is_correct if post.post_type == PostType.QUIZ and unlocked else False,
+                }
+                for o in (post.poll_options or [])
             ],
+            "my_vote_option_id": my_vote_option_id,
             "event": {
                 "starts_at": post.event.starts_at.isoformat(),
-                "ends_at": post.event.ends_at.isoformat() if post.event and post.event.ends_at else None,
-                "location": post.event.location if post.event else None,
-            } if post.event else None,
+                "ends_at": post.event.ends_at.isoformat() if post.event.ends_at else None,
+                "location": post.event.location,
+            }
+            if post.event
+            else None,
             "reactions": [{"emoji": r.emoji, "user_id": str(r.user_id)} for r in post.reactions],
             "comments_count": len(post.comments),
             "created_at": post.created_at.isoformat(),
@@ -411,15 +458,15 @@ class ChannelService:
     async def vote_poll(self, user: User, post_id: uuid.UUID, option_id: uuid.UUID) -> dict:
         post_res = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))
         post = post_res.scalar_one_or_none()
-        if not post or post.post_type not in (PostType.POLL, PostType.QUIZ):
+        if not post:
+            raise ValueError("post_not_found")
+        post_type = post.post_type.value if hasattr(post.post_type, "value") else str(post.post_type)
+        if post_type not in ("poll", "quiz", PostType.POLL.value, PostType.QUIZ.value) and post.post_type not in (
+            PostType.POLL,
+            PostType.QUIZ,
+        ):
             raise ValueError("not_poll")
         await self._require_member(post.channel_id, user.id)
-
-        existing = await self.db.execute(
-            select(PollVote).where(PollVote.post_id == post_id, PollVote.user_id == user.id)
-        )
-        if existing.scalar_one_or_none():
-            raise ValueError("already_voted")
 
         opt_res = await self.db.execute(
             select(PollOption).where(PollOption.id == option_id, PollOption.post_id == post_id)
@@ -428,7 +475,22 @@ class ChannelService:
         if not option:
             raise ValueError("option_not_found")
 
-        self.db.add(PollVote(post_id=post_id, option_id=option_id, user_id=user.id))
+        existing_res = await self.db.execute(
+            select(PollVote).where(PollVote.post_id == post_id, PollVote.user_id == user.id)
+        )
+        existing = existing_res.scalar_one_or_none()
+        if existing:
+            if existing.option_id == option_id:
+                return await self._post_dict(post, user)
+            old_opt_res = await self.db.execute(
+                select(PollOption).where(PollOption.id == existing.option_id)
+            )
+            old_opt = old_opt_res.scalar_one_or_none()
+            if old_opt and old_opt.votes_count > 0:
+                old_opt.votes_count -= 1
+            existing.option_id = option_id
+        else:
+            self.db.add(PollVote(post_id=post_id, option_id=option_id, user_id=user.id))
         option.votes_count += 1
         await self.db.commit()
         return await self._post_dict(post, user)
@@ -516,6 +578,17 @@ class ChannelService:
         if role == ChannelMemberRole.ADMIN and actor.role != ChannelMemberRole.OWNER:
             raise ValueError("no_permission")
         target.role = role
+        if role == ChannelMemberRole.ADMIN:
+            for k, v in self._admin_permissions().items():
+                setattr(target, k, v)
+        elif role == ChannelMemberRole.SUBSCRIBER:
+            target.can_post = False
+            target.can_edit = False
+            target.can_delete = False
+            target.can_ban = False
+            target.can_pin = False
+            target.can_announce = False
+            target.can_manage_members = False
         if permissions:
             if actor.role != ChannelMemberRole.OWNER:
                 raise ValueError("no_permission")
@@ -523,6 +596,178 @@ class ChannelService:
                 if hasattr(target, k):
                     setattr(target, k, v)
         await self.db.commit()
+
+    async def transfer_ownership(self, user: User, slug: str, new_owner_id: uuid.UUID) -> dict:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        if ch.owner_id != user.id:
+            raise ValueError("no_permission")
+        if new_owner_id == user.id:
+            raise ValueError("cannot_transfer_to_self")
+        new_owner_member = await self._get_member(ch.id, new_owner_id)
+        if not new_owner_member:
+            raise ValueError("not_member")
+        old_owner_member = await self._get_member(ch.id, user.id)
+        if not old_owner_member:
+            raise ValueError("not_member")
+
+        old_owner_member.role = ChannelMemberRole.ADMIN
+        for k, v in self._admin_permissions().items():
+            setattr(old_owner_member, k, v)
+
+        new_owner_member.role = ChannelMemberRole.OWNER
+        for k, v in self._admin_permissions().items():
+            setattr(new_owner_member, k, v)
+        ch.owner_id = new_owner_id
+        await self.db.commit()
+        await self.db.refresh(ch)
+        return self._channel_dict(ch, True, False, old_owner_member)
+
+    async def list_members(self, user: User, slug: str) -> list[dict]:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        await self._require_member(ch.id, user.id)
+        rows = await self.db.execute(
+            select(ChannelMember, User)
+            .join(User, User.id == ChannelMember.user_id)
+            .where(ChannelMember.channel_id == ch.id)
+            .order_by(ChannelMember.joined_at.asc())
+        )
+        out = []
+        for member, u in rows.all():
+            out.append(
+                {
+                    "user_id": str(u.id),
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "avatar_url": StorageService.generate_presigned_url(u.avatar_url),
+                    "role": member.role.value,
+                    "is_official_verified": bool(u.is_official_verified),
+                    "joined_at": member.joined_at.isoformat(),
+                }
+            )
+        return out
+
+    async def submit_verification_request(
+        self,
+        user: User,
+        slug: str,
+        reason: str,
+        link_website: str | None = None,
+        link_social: str | None = None,
+    ) -> dict:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        if ch.owner_id != user.id:
+            raise ValueError("no_permission")
+        if ch.is_verified:
+            raise ValueError("already_verified")
+        pending = await self.db.execute(
+            select(ChannelVerificationRequest).where(
+                ChannelVerificationRequest.channel_id == ch.id,
+                ChannelVerificationRequest.status == ChannelVerificationRequestStatus.PENDING.value,
+            )
+        )
+        if pending.scalar_one_or_none():
+            raise ValueError("request_pending")
+        cleaned = (reason or "").strip()
+        if len(cleaned) < 20:
+            raise ValueError("reason_too_short")
+        if not ((link_website and link_website.strip()) or (link_social and link_social.strip())):
+            raise ValueError("link_required")
+        req = ChannelVerificationRequest(
+            channel_id=ch.id,
+            requested_by_id=user.id,
+            reason=cleaned,
+            link_website=(link_website or "").strip() or None,
+            link_social=(link_social or "").strip() or None,
+            status=ChannelVerificationRequestStatus.PENDING.value,
+        )
+        self.db.add(req)
+        await self.db.commit()
+        await self.db.refresh(req)
+        return self._verification_dict(req, ch)
+
+    async def get_verification_request(self, user: User, slug: str) -> dict | None:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        if ch.owner_id != user.id:
+            raise ValueError("no_permission")
+        req_res = await self.db.execute(
+            select(ChannelVerificationRequest)
+            .where(ChannelVerificationRequest.channel_id == ch.id)
+            .order_by(ChannelVerificationRequest.created_at.desc())
+            .limit(1)
+        )
+        req = req_res.scalar_one_or_none()
+        return self._verification_dict(req, ch) if req else None
+
+    def _verification_dict(self, req: ChannelVerificationRequest, ch: Channel | None = None) -> dict:
+        return {
+            "id": str(req.id),
+            "channel_id": str(req.channel_id),
+            "channel_slug": ch.slug if ch else None,
+            "channel_title": ch.title if ch else None,
+            "requested_by_id": str(req.requested_by_id),
+            "reason": req.reason,
+            "link_website": req.link_website,
+            "link_social": req.link_social,
+            "status": req.status,
+            "admin_note": req.admin_note,
+            "reviewed_at": req.reviewed_at.isoformat() if req.reviewed_at else None,
+            "created_at": req.created_at.isoformat(),
+        }
+
+    async def list_verification_requests(self, status: str | None = None) -> list[dict]:
+        q = (
+            select(ChannelVerificationRequest, Channel)
+            .join(Channel, Channel.id == ChannelVerificationRequest.channel_id)
+            .order_by(ChannelVerificationRequest.created_at.desc())
+        )
+        if status:
+            q = q.where(ChannelVerificationRequest.status == status)
+        result = await self.db.execute(q.limit(100))
+        return [self._verification_dict(req, ch) for req, ch in result.all()]
+
+    async def review_verification_request(
+        self,
+        admin: User,
+        request_id: uuid.UUID,
+        approve: bool,
+        admin_note: str | None = None,
+    ) -> dict:
+        result = await self.db.execute(
+            select(ChannelVerificationRequest, Channel)
+            .join(Channel, Channel.id == ChannelVerificationRequest.channel_id)
+            .where(ChannelVerificationRequest.id == request_id)
+        )
+        row = result.one_or_none()
+        if not row:
+            raise ValueError("request_not_found")
+        req, ch = row
+        if req.status != ChannelVerificationRequestStatus.PENDING.value:
+            raise ValueError("request_already_reviewed")
+        req.status = (
+            ChannelVerificationRequestStatus.APPROVED.value
+            if approve
+            else ChannelVerificationRequestStatus.REJECTED.value
+        )
+        req.admin_note = admin_note
+        req.reviewed_by_id = admin.id
+        req.reviewed_at = datetime.now(timezone.utc)
+        if approve:
+            ch.is_verified = True
+        await self.db.commit()
+        await self.db.refresh(req)
+        return self._verification_dict(req, ch)
 
     async def verify_channel(self, slug: str, verified: bool = True) -> None:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))

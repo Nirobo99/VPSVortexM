@@ -1,4 +1,4 @@
-import type { VerificationRequest } from "./api";
+import type { ChannelVerificationRequest, VerificationRequest } from "./api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -157,6 +157,17 @@ export const adminApi = {
   },
   reviewVerificationRequest(id: string, approve: boolean, adminNote?: string) {
     return adminRequest(`/admin/verification/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify({ approve, admin_note: adminNote || null }),
+    });
+  },
+  listChannelVerificationRequests(status?: string) {
+    return adminRequest<ChannelVerificationRequest[]>(
+      `/admin/channel-verification${status ? `?status=${status}` : ""}`
+    );
+  },
+  reviewChannelVerificationRequest(id: string, approve: boolean, adminNote?: string) {
+    return adminRequest(`/admin/channel-verification/${id}/review`, {
       method: "POST",
       body: JSON.stringify({ approve, admin_note: adminNote || null }),
     });

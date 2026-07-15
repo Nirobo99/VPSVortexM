@@ -1,7 +1,14 @@
 from app.models.user import User
 from app.models.auth_tokens import EmailVerificationToken, PasswordResetToken, RefreshToken
 from app.models.social import BlockedUser, UserIPLog
-from app.models.profile import Achievement, ProfilePost, Story, UserAchievement, VerificationRequest
+from app.models.profile import (
+    Achievement,
+    ProfilePost,
+    ProfilePostComment,
+    Story,
+    UserAchievement,
+    VerificationRequest,
+)
 from app.models.messaging import ChatFolder, Dialog, DialogParticipant, Message, MessageReaction
 from app.models.security import SecurityLog
 from app.models.calls import Call, CallParticipant, CallRecording
@@ -11,6 +18,7 @@ from app.models.channels import (
     ChannelMember,
     ChannelPost,
     ChannelProduct,
+    ChannelVerificationRequest,
     PollOption,
     PollVote,
     PostComment,
@@ -41,6 +49,7 @@ __all__ = [
     "UserIPLog",
     "Story",
     "ProfilePost",
+    "ProfilePostComment",
     "VerificationRequest",
     "Achievement",
     "UserAchievement",
@@ -58,6 +67,7 @@ __all__ = [
     "ChannelPost",
     "ChannelBroadcast",
     "ChannelProduct",
+    "ChannelVerificationRequest",
     "PollOption",
     "PollVote",
     "PostComment",

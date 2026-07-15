@@ -37,6 +37,26 @@
   "errors": {
     "internal": "Internal server error"
   },
+  "profile": {
+    "user_not_found": "User not found",
+    "profile_private": "Profile is private",
+    "user_blocked": "User added to block list",
+    "cannot_block_self": "Cannot block yourself",
+    "user_unblocked": "User removed from block list",
+    "invalid_visibility": "Invalid visibility setting",
+    "invalid_theme": "Invalid theme",
+    "file_too_large": "File exceeds 50 MB",
+    "invalid_image_type": "Allowed: JPEG, PNG, WebP, GIF",
+    "invalid_media_type": "Invalid media type",
+    "story_not_found": "Story not found",
+    "story_deleted": "Story deleted",
+    "empty_post": "Add text or a photo",
+    "empty_comment": "Comment cannot be empty",
+    "post_not_found": "Post not found",
+    "post_deleted": "Post deleted",
+    "user_exists": "User already exists",
+    "username_change_cooldown": "Username can be changed once every 30 days"
+  },
   "chats": {
     "dialog_not_found": "Dialog not found",
     "folder_not_found": "Folder not found",
@@ -101,7 +121,17 @@
     "verified": "Verification status updated",
     "updated": "Channel updated",
     "invalid_title": "Channel title is required",
-    "invalid_price": "Invalid subscription price"
+    "invalid_price": "Invalid subscription price",
+    "poll_options_required": "Add at least two poll options",
+    "already_verified": "Channel is already verified",
+    "request_pending": "Verification request is already pending",
+    "reason_too_short": "Describe the reason in more detail (at least 20 characters)",
+    "link_required": "Provide at least one website or social link",
+    "request_not_found": "Verification request not found",
+    "request_already_reviewed": "Request has already been reviewed",
+    "cannot_transfer_to_self": "Cannot transfer ownership to yourself",
+    "ownership_transferred": "Channel ownership transferred",
+    "verification_submitted": "Channel verification request submitted"
   },
   "groups": {
     "member_limit_exceeded": "Member limit exceeded (500)",

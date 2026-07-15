@@ -82,6 +82,41 @@ class SetAdminRequest(BaseModel):
     is_admin: bool
 
 
+class TransferOwnershipRequest(BaseModel):
+    user_id: str
+
+
+class ChannelVerificationSubmitRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=4000)
+    link_website: str | None = Field(None, max_length=512)
+    link_social: str | None = Field(None, max_length=512)
+
+
+class ChannelVerificationResponse(BaseModel):
+    id: str
+    channel_id: str
+    channel_slug: str | None = None
+    channel_title: str | None = None
+    requested_by_id: str
+    reason: str
+    link_website: str | None = None
+    link_social: str | None = None
+    status: str
+    admin_note: str | None = None
+    reviewed_at: str | None = None
+    created_at: str
+
+
+class ChannelMemberResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str | None = None
+    avatar_url: str | None = None
+    role: str
+    is_official_verified: bool = False
+    joined_at: str
+
+
 class ChannelResponse(BaseModel):
     id: str
     slug: str
@@ -95,6 +130,9 @@ class ChannelResponse(BaseModel):
     subscription_price: int
     is_member: bool
     is_owner: bool = False
+    my_role: str | None = None
+    can_post: bool = False
+    can_manage_members: bool = False
     created_at: str
 
 
@@ -113,6 +151,7 @@ class PostResponse(BaseModel):
     is_announcement: bool
     views_count: int
     poll_options: list[dict]
+    my_vote_option_id: str | None = None
     event: dict | None
     reactions: list[dict]
     comments_count: int

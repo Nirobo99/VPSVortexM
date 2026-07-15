@@ -28,6 +28,7 @@ from app.schemas.auth import MessageResponse
 from app.schemas.profile import AnonymousUserCreateRequest, ProfileResponse, VerificationReviewRequest
 from app.services.admin_auth_service import AdminAuthService
 from app.services.admin_panel_service import AdminPanelService
+from app.services.channel_service import ChannelService
 from app.services.profile_service import ProfileService
 from app.services.verification_service import VerificationService
 
@@ -283,6 +284,34 @@ async def review_verification_request(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"verification.{e}", lang))
+
+
+# ── Channel verification ────────────────────────────────────
+
+@router.get("/channel-verification")
+async def list_channel_verification_requests(
+    status: str | None = Query(None),
+    admin: AdminContext = Depends(require_permission("channels", "verify")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await ChannelService(db).list_verification_requests(status)
+
+
+@router.post("/channel-verification/{request_id}/review")
+async def review_channel_verification_request(
+    request_id: str,
+    body: VerificationReviewRequest,
+    request: Request,
+    admin: AdminContext = Depends(require_permission("channels", "verify")),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    try:
+        return await ChannelService(db).review_verification_request(
+            admin.user, uuid.UUID(request_id), body.approve, body.admin_note
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
 
 
 # ── Ads ────────────────────────────────────────────────────

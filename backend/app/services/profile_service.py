@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.i18n import t
 from app.core.security import hash_password
-from app.models.profile import ProfilePost, ProfilePostMediaType, Story, StoryMediaType
+from app.models.profile import ProfilePost, ProfilePostComment, ProfilePostMediaType, Story, StoryMediaType
 from app.models.social import BlockedUser
 from app.models.user import ProfileVisibility, ThemeMode, User, UserRole
 from app.services.gamification_service import GamificationService
@@ -201,7 +201,7 @@ class ProfileService:
             media_url=media_url,
             media_type=media_type,
             text=text,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=30),
         )
         self.db.add(story)
         await self.db.flush()
@@ -269,6 +269,7 @@ class ProfileService:
         result = await self.db.execute(
             select(ProfilePost)
             .where(ProfilePost.user_id == user_id)
+            .options(selectinload(ProfilePost.comments))
             .order_by(ProfilePost.created_at.desc())
         )
         return list(result.scalars().all())
@@ -284,6 +285,54 @@ class ProfileService:
             StorageService.delete_by_url(post.media_url)
         await self.db.delete(post)
         await self.db.commit()
+
+    async def list_post_comments(self, post_id: uuid.UUID) -> list[dict]:
+        post = await self.db.get(ProfilePost, post_id)
+        if not post:
+            raise ValueError("post_not_found")
+        result = await self.db.execute(
+            select(ProfilePostComment, User)
+            .join(User, User.id == ProfilePostComment.author_id)
+            .where(ProfilePostComment.post_id == post_id)
+            .order_by(ProfilePostComment.created_at.asc())
+        )
+        return [
+            {
+                "id": str(c.id),
+                "post_id": str(c.post_id),
+                "author_id": str(u.id),
+                "author_username": u.username,
+                "author_display_name": u.display_name,
+                "author_avatar_url": StorageService.generate_presigned_url(u.avatar_url),
+                "is_official_verified": bool(u.is_official_verified),
+                "content": c.content,
+                "created_at": c.created_at.isoformat(),
+            }
+            for c, u in result.all()
+        ]
+
+    async def add_post_comment(self, user: User, post_id: uuid.UUID, content: str) -> dict:
+        post = await self.db.get(ProfilePost, post_id)
+        if not post:
+            raise ValueError("post_not_found")
+        cleaned = (content or "").strip()
+        if len(cleaned) < 1:
+            raise ValueError("empty_comment")
+        comment = ProfilePostComment(post_id=post_id, author_id=user.id, content=cleaned)
+        self.db.add(comment)
+        await self.db.commit()
+        await self.db.refresh(comment)
+        return {
+            "id": str(comment.id),
+            "post_id": str(comment.post_id),
+            "author_id": str(user.id),
+            "author_username": user.username,
+            "author_display_name": user.display_name,
+            "author_avatar_url": StorageService.generate_presigned_url(user.avatar_url),
+            "is_official_verified": bool(user.is_official_verified),
+            "content": comment.content,
+            "created_at": comment.created_at.isoformat(),
+        }
 
     async def _is_blocked(self, user_a: uuid.UUID, user_b: uuid.UUID) -> bool:
         result = await self.db.execute(

@@ -102,6 +102,19 @@ class ProfilePostResponse(BaseModel):
     media_url: str | None
     media_type: str
     text: str | None
+    comments_count: int = 0
+    created_at: str
+
+
+class ProfilePostCommentResponse(BaseModel):
+    id: str
+    post_id: str
+    author_id: str
+    author_username: str
+    author_display_name: str | None = None
+    author_avatar_url: str | None = None
+    is_official_verified: bool = False
+    content: str
     created_at: str
 
 

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
-import { api, type Profile, type ProfilePost, type Story, type VerificationRequest } from "@/lib/api";
+import { api, type Profile, type ProfilePost, type ProfilePostComment, type Story, type VerificationRequest } from "@/lib/api";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 import { VerificationForm } from "@/components/profile/VerificationForm";
@@ -24,6 +24,7 @@ import {
   Select,
   Textarea,
 } from "@/components/ui";
+import { LinkifiedText } from "@/components/ui/LinkifiedText";
 
 type ViewMode = "view" | "edit";
 type PublishKind = "post" | "photo" | "story";
@@ -35,6 +36,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<ProfilePost[]>([]);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, ProfilePostComment[]>>({});
+  const [draftByPost, setDraftByPost] = useState<Record<string, string>>({});
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
   const [verification, setVerification] = useState<VerificationRequest | null>(null);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("view");
@@ -441,23 +445,98 @@ export default function ProfilePage() {
                   <p className="text-sm text-muted-foreground">{t("profile.noPosts")}</p>
                 )}
                 {posts.map((post) => (
-                  <div key={post.id} className="border border-border rounded-lg p-3">
+                  <div key={post.id} className="border border-border rounded-lg p-3 space-y-2">
                     {post.media_url && (
                       <img
                         src={post.media_url}
                         alt=""
-                        className="w-full max-h-80 object-cover rounded-md mb-2"
+                        className="w-full max-h-80 object-cover rounded-md"
                       />
                     )}
-                    {post.text && <p className="text-sm whitespace-pre-wrap">{post.text}</p>}
-                    <div className="flex items-center justify-between mt-2">
+                    {post.text && <LinkifiedText text={post.text} className="text-sm" />}
+                    <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">
                         {new Date(post.created_at).toLocaleString()}
+                        {typeof post.comments_count === "number"
+                          ? ` · ${post.comments_count} ${t("profile.comments")}`
+                          : ""}
                       </p>
-                      <Button variant="ghost" size="sm" onClick={() => removePost(post.id)}>
-                        {t("profile.deletePost")}
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={async () => {
+                            const open = !expandedComments[post.id];
+                            setExpandedComments((prev) => ({ ...prev, [post.id]: open }));
+                            if (open && !commentsByPost[post.id]) {
+                              try {
+                                const comments = await api.getProfilePostComments(post.id);
+                                setCommentsByPost((prev) => ({ ...prev, [post.id]: comments }));
+                              } catch {
+                                setCommentsByPost((prev) => ({ ...prev, [post.id]: [] }));
+                              }
+                            }
+                          }}
+                        >
+                          {t("profile.comments")}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => removePost(post.id)}>
+                          {t("profile.deletePost")}
+                        </Button>
+                      </div>
                     </div>
+                    {expandedComments[post.id] && (
+                      <div className="space-y-2 border-t border-border pt-2">
+                        {(commentsByPost[post.id] || []).map((c) => (
+                          <div key={c.id} className="text-sm">
+                            <span className="font-medium">@{c.author_username}</span>
+                            <span className="text-muted-foreground">: </span>
+                            <LinkifiedText text={c.content} />
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder={t("profile.commentPlaceholder")}
+                            value={draftByPost[post.id] || ""}
+                            onChange={(e) =>
+                              setDraftByPost((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            }
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={!(draftByPost[post.id] || "").trim()}
+                            onClick={async () => {
+                              const content = (draftByPost[post.id] || "").trim();
+                              if (!content) return;
+                              try {
+                                const comment = await api.addProfilePostComment(post.id, content);
+                                setCommentsByPost((prev) => ({
+                                  ...prev,
+                                  [post.id]: [...(prev[post.id] || []), comment],
+                                }));
+                                setPosts((prev) =>
+                                  prev.map((p) =>
+                                    p.id === post.id
+                                      ? { ...p, comments_count: (p.comments_count || 0) + 1 }
+                                      : p
+                                  )
+                                );
+                                setDraftByPost((prev) => ({ ...prev, [post.id]: "" }));
+                              } catch (e) {
+                                setMessage({
+                                  type: "err",
+                                  text: e instanceof Error ? e.message : t("auth.error"),
+                                });
+                              }
+                            }}
+                          >
+                            {t("profile.sendComment")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </CardContent>

@@ -55,6 +55,32 @@ class Channel(Base):
     posts: Mapped[list["ChannelPost"]] = relationship(back_populates="channel", cascade="all, delete-orphan")
 
 
+class ChannelVerificationRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class ChannelVerificationRequest(Base):
+    __tablename__ = "channel_verification_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    channel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), index=True
+    )
+    requested_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    link_website: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    link_social: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default=ChannelVerificationRequestStatus.PENDING.value, index=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ChannelMember(Base):
     __tablename__ = "channel_members"
     __table_args__ = (UniqueConstraint("channel_id", "user_id", name="uq_channel_member"),)

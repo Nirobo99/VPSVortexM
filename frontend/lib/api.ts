@@ -70,6 +70,19 @@ export interface ProfilePost {
   media_url: string | null;
   media_type: string;
   text: string | null;
+  comments_count?: number;
+  created_at: string;
+}
+
+export interface ProfilePostComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  author_username: string;
+  author_display_name: string | null;
+  author_avatar_url: string | null;
+  is_official_verified: boolean;
+  content: string;
   created_at: string;
 }
 
@@ -170,6 +183,34 @@ export interface ChannelInfo {
   subscription_price: number;
   is_member: boolean;
   is_owner?: boolean;
+  my_role?: string | null;
+  can_post?: boolean;
+  can_manage_members?: boolean;
+  created_at: string;
+}
+
+export interface ChannelMember {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  is_official_verified: boolean;
+  joined_at: string;
+}
+
+export interface ChannelVerificationRequest {
+  id: string;
+  channel_id: string;
+  channel_slug?: string | null;
+  channel_title?: string | null;
+  requested_by_id: string;
+  reason: string;
+  link_website: string | null;
+  link_social: string | null;
+  status: string;
+  admin_note: string | null;
+  reviewed_at: string | null;
   created_at: string;
 }
 
@@ -188,6 +229,7 @@ export interface ChannelPost {
   is_announcement: boolean;
   views_count: number;
   poll_options: { id: string; text: string; votes_count: number; is_correct?: boolean }[];
+  my_vote_option_id?: string | null;
   event: { starts_at: string; ends_at: string | null; location: string | null } | null;
   reactions: { emoji: string; user_id: string }[];
   comments_count: number;
@@ -681,6 +723,18 @@ class ApiClient {
     return this.request<ProfilePost[]>(`/users/${encodeURIComponent(username)}/posts`, {}, true);
   }
 
+  getProfilePostComments(postId: string) {
+    return this.request<ProfilePostComment[]>(`/users/posts/${postId}/comments`, {}, true);
+  }
+
+  addProfilePostComment(postId: string, content: string) {
+    return this.request<ProfilePostComment>(
+      `/users/posts/${postId}/comments`,
+      { method: "POST", body: JSON.stringify({ content }) },
+      true
+    );
+  }
+
   getFolders() {
     return this.request<ChatFolder[]>("/chats/folders", {}, true);
   }
@@ -938,6 +992,45 @@ class ApiClient {
     return this.request<ChannelPost>(
       `/channels/posts/${postId}/vote`,
       { method: "POST", body: JSON.stringify({ option_id: optionId }) },
+      true
+    );
+  }
+
+  getChannelMembers(slug: string) {
+    return this.request<ChannelMember[]>(`/channels/${encodeURIComponent(slug)}/members`, {}, true);
+  }
+
+  updateChannelMember(slug: string, userId: string, role: string) {
+    return this.request<{ message: string }>(
+      `/channels/${encodeURIComponent(slug)}/members`,
+      { method: "PATCH", body: JSON.stringify({ user_id: userId, role }) },
+      true
+    );
+  }
+
+  transferChannelOwnership(slug: string, userId: string) {
+    return this.request<ChannelInfo>(
+      `/channels/${encodeURIComponent(slug)}/transfer-ownership`,
+      { method: "POST", body: JSON.stringify({ user_id: userId }) },
+      true
+    );
+  }
+
+  getChannelVerification(slug: string) {
+    return this.requestNullable<ChannelVerificationRequest>(
+      `/channels/${encodeURIComponent(slug)}/verification`,
+      {},
+      true
+    );
+  }
+
+  submitChannelVerification(
+    slug: string,
+    data: { reason: string; link_website?: string; link_social?: string }
+  ) {
+    return this.request<ChannelVerificationRequest>(
+      `/channels/${encodeURIComponent(slug)}/verification`,
+      { method: "POST", body: JSON.stringify(data) },
       true
     );
   }

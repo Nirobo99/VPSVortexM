@@ -2,26 +2,37 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
-import { api, type PublicProfile, type ProfilePost, type Story } from "@/lib/api";
+import {
+  api,
+  type PublicProfile,
+  type ProfilePost,
+  type ProfilePostComment,
+  type Story,
+} from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
-import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/components/ui";
+import { LinkifiedText } from "@/components/ui/LinkifiedText";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 
 export default function PublicProfilePage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const params = useParams();
   const username = decodeURIComponent(params.username as string);
   const { user } = useAuth();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<ProfilePost[]>([]);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, ProfilePostComment[]>>({});
+  const [draftByPost, setDraftByPost] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [blocking, setBlocking] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
 
   const reportUser = async () => {
     if (!profile || !user) return;
@@ -44,11 +55,22 @@ export default function PublicProfilePage() {
       .then(async (p) => {
         setProfile(p);
         const [s, wall] = await Promise.all([
-          api.getUserStories(username),
-          api.getUserPosts(username),
+          api.getUserStories(username).catch(() => []),
+          api.getUserPosts(username).catch(() => []),
         ]);
         setStories(s);
         setPosts(wall);
+        const commentPairs = await Promise.all(
+          wall.map(async (post) => {
+            try {
+              const comments = await api.getProfilePostComments(post.id);
+              return [post.id, comments] as const;
+            } catch {
+              return [post.id, []] as const;
+            }
+          })
+        );
+        setCommentsByPost(Object.fromEntries(commentPairs));
       })
       .catch((e) => setError(e.message));
   }, [username]);
@@ -63,6 +85,39 @@ export default function PublicProfilePage() {
       setError(e instanceof Error ? e.message : t("auth.error"));
     } finally {
       setBlocking(false);
+    }
+  };
+
+  const openChat = async () => {
+    if (!profile || !user) return;
+    setOpeningChat(true);
+    try {
+      const dialog = await api.createDialog(profile.username);
+      router.push(`/messages?dialog=${dialog.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setOpeningChat(false);
+    }
+  };
+
+  const addComment = async (postId: string) => {
+    const content = (draftByPost[postId] || "").trim();
+    if (!content) return;
+    try {
+      const comment = await api.addProfilePostComment(postId, content);
+      setCommentsByPost((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), comment],
+      }));
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p
+        )
+      );
+      setDraftByPost((prev) => ({ ...prev, [postId]: "" }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("auth.error"));
     }
   };
 
@@ -92,6 +147,7 @@ export default function PublicProfilePage() {
 
       <main className="p-6 max-w-lg mx-auto space-y-4">
         {error && !profile && <Alert variant="destructive">{error}</Alert>}
+        {error && profile && <Alert variant="destructive">{error}</Alert>}
 
         {profile && (
           <>
@@ -144,6 +200,9 @@ export default function PublicProfilePage() {
                   )}
                   {user && !isOwn && (
                     <>
+                      <Button onClick={openChat} disabled={openingChat}>
+                        {t("profile.openChat")}
+                      </Button>
                       <Button variant="destructive" onClick={blockUser} disabled={blocking}>
                         {t("settings.block")}
                       </Button>
@@ -161,30 +220,62 @@ export default function PublicProfilePage() {
               </CardContent>
             </Card>
 
-            {posts.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">{t("profile.wall")}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {posts.map((post) => (
-                    <div key={post.id} className="border border-border rounded-lg p-3">
-                      {post.media_url && (
-                        <img
-                          src={post.media_url}
-                          alt=""
-                          className="w-full max-h-72 object-cover rounded-md mb-2"
-                        />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">{t("profile.wall")}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {posts.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">{t("profile.noPosts")}</p>
+                )}
+                {posts.map((post) => (
+                  <div key={post.id} className="border border-border rounded-lg p-3 space-y-2">
+                    {post.media_url && (
+                      <img
+                        src={post.media_url}
+                        alt=""
+                        className="w-full max-h-72 object-cover rounded-md"
+                      />
+                    )}
+                    {post.text && <LinkifiedText text={post.text} className="text-sm" />}
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(post.created_at).toLocaleString()}
+                      {typeof post.comments_count === "number"
+                        ? ` · ${post.comments_count} ${t("profile.comments")}`
+                        : ""}
+                    </p>
+                    <div className="space-y-2 border-t border-border pt-2">
+                      {(commentsByPost[post.id] || []).map((c) => (
+                        <div key={c.id} className="text-sm">
+                          <span className="font-medium">@{c.author_username}</span>
+                          <span className="text-muted-foreground">: </span>
+                          <LinkifiedText text={c.content} />
+                        </div>
+                      ))}
+                      {user && (
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder={t("profile.commentPlaceholder")}
+                            value={draftByPost[post.id] || ""}
+                            onChange={(e) =>
+                              setDraftByPost((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            }
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => addComment(post.id)}
+                            disabled={!(draftByPost[post.id] || "").trim()}
+                          >
+                            {t("profile.sendComment")}
+                          </Button>
+                        </div>
                       )}
-                      {post.text && <p className="text-sm whitespace-pre-wrap">{post.text}</p>}
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {new Date(post.created_at).toLocaleString()}
-                      </p>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           </>
         )}
       </main>

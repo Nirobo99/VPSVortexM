@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,14 +14,18 @@ from app.schemas.auth import MessageResponse
 from app.schemas.channels import (
     BroadcastRequest,
     ChannelCreateRequest,
+    ChannelMemberResponse,
     ChannelResponse,
     ChannelUpdateRequest,
+    ChannelVerificationResponse,
+    ChannelVerificationSubmitRequest,
     CommentCreateRequest,
     MemberRoleRequest,
     PollVoteRequest,
     PostCreateRequest,
     PostResponse,
     ProductCreateRequest,
+    TransferOwnershipRequest,
 )
 from app.services.channel_service import ChannelService
 
@@ -45,7 +50,8 @@ async def create_channel(
         raise HTTPException(status_code=400, detail=t("channels.invalid_visibility", lang))
     service = ChannelService(db)
     ch = await service.create_channel(user, body.title, body.description, visibility, body.subscription_price)
-    return ChannelResponse(**service._channel_dict(ch, True, True))
+    member = await service._get_member(ch.id, user.id)
+    return ChannelResponse(**service._channel_dict(ch, True, True, member))
 
 
 @router.get("", response_model=list[ChannelResponse])
@@ -289,6 +295,22 @@ async def broadcast(
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
 
 
+@router.get("/{slug}/members", response_model=list[ChannelMemberResponse])
+async def list_members(
+    slug: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        members = await service.list_members(user, slug)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    return [ChannelMemberResponse(**m) for m in members]
+
+
 @router.patch("/{slug}/members", response_model=MessageResponse)
 async def update_member(
     slug: str,
@@ -309,6 +331,64 @@ async def update_member(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     return MessageResponse(message=t("channels.member_updated", lang))
+
+
+@router.post("/{slug}/transfer-ownership", response_model=ChannelResponse)
+async def transfer_ownership(
+    slug: str,
+    body: TransferOwnershipRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        data = await service.transfer_ownership(user, slug, uuid.UUID(body.user_id))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    return ChannelResponse(**data)
+
+
+@router.get("/{slug}/verification")
+async def get_channel_verification(
+    slug: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        data = await service.get_verification_request(user, slug)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    if not data:
+        return JSONResponse(content=None)
+    return ChannelVerificationResponse(**data)
+
+
+@router.post("/{slug}/verification", response_model=ChannelVerificationResponse, status_code=status.HTTP_201_CREATED)
+async def submit_channel_verification(
+    slug: str,
+    body: ChannelVerificationSubmitRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        data = await service.submit_verification_request(
+            user,
+            slug,
+            body.reason,
+            body.link_website,
+            body.link_social,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    return ChannelVerificationResponse(**data)
 
 
 @router.post("/{slug}/verify", response_model=MessageResponse)

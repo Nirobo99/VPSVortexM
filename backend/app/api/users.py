@@ -9,11 +9,14 @@ from app.core.deps import get_current_user, get_current_user_optional, get_super
 from app.core.i18n import t
 from app.models.user import ProfileVisibility, ThemeMode, User
 from app.schemas.auth import MessageResponse
+from app.schemas.channels import CommentCreateRequest
 from app.schemas.profile import (
     AnonymousUserCreateRequest,
     BlockUserRequest,
     GamificationResponse,
     InvisibleSettingsRequest,
+    ProfilePostCommentResponse,
+    ProfilePostResponse,
     ProfileResponse,
     ProfileUpdateRequest,
     PublicProfileResponse,
@@ -23,7 +26,6 @@ from app.schemas.profile import (
     UsernameChangeRequest,
     VerificationSubmitRequest,
     VerificationRequestResponse,
-    ProfilePostResponse,
 )
 from app.services.profile_service import ProfileService
 from app.services.storage_service import StorageService
@@ -290,11 +292,17 @@ async def delete_story(
 def _post_response(post) -> ProfilePostResponse:
     mt = post.media_type
     media_type = (mt.value if hasattr(mt, "value") else str(mt or "text")).lower()
+    comments_count = 0
+    try:
+        comments_count = len(post.comments) if post.comments is not None else 0
+    except Exception:
+        comments_count = 0
     return ProfilePostResponse(
         id=str(post.id),
         media_url=StorageService.generate_presigned_url(post.media_url),
         media_type=media_type,
         text=post.text,
+        comments_count=comments_count,
         created_at=post.created_at.isoformat(),
     )
 
@@ -348,6 +356,38 @@ async def delete_profile_post(
     except ValueError:
         raise HTTPException(status_code=404, detail=t("profile.post_not_found", lang))
     return MessageResponse(message=t("profile.post_deleted", lang))
+
+
+@router.get("/posts/{post_id}/comments", response_model=list[ProfilePostCommentResponse])
+async def list_profile_post_comments(
+    post_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    try:
+        comments = await service.list_post_comments(uuid.UUID(post_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=t(f"profile.{e}", lang))
+    return [ProfilePostCommentResponse(**c) for c in comments]
+
+
+@router.post("/posts/{post_id}/comments", response_model=ProfilePostCommentResponse, status_code=status.HTTP_201_CREATED)
+async def add_profile_post_comment(
+    post_id: str,
+    body: CommentCreateRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    try:
+        comment = await service.add_post_comment(user, uuid.UUID(post_id), body.content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"profile.{e}", lang))
+    return ProfilePostCommentResponse(**comment)
 
 
 @router.get("/{username}/posts", response_model=list[ProfilePostResponse])

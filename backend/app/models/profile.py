@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -44,6 +44,24 @@ class ProfilePost(Base):
     media_type: Mapped[str] = mapped_column(String(16), default=ProfilePostMediaType.TEXT.value)
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    comments: Mapped[list["ProfilePostComment"]] = relationship(
+        back_populates="post", cascade="all, delete-orphan"
+    )
+
+
+class ProfilePostComment(Base):
+    __tablename__ = "profile_post_comments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profile_posts.id", ondelete="CASCADE"), index=True
+    )
+    author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    post: Mapped["ProfilePost"] = relationship(back_populates="comments")
 
 
 class Achievement(Base):
