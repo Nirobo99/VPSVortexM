@@ -19,6 +19,7 @@ export interface UserMe {
   theme_primary: string | null;
   theme_accent: string | null;
   status_text: string | null;
+  status_emoji: string | null;
   is_verified: boolean;
   totp_enabled: boolean;
   activity_points: number;
@@ -48,7 +49,7 @@ export interface PublicProfile {
   status_text: string | null;
   status_emoji: string | null;
   is_verified: boolean;
-  level: number;
+  is_admin: boolean;
   is_anonymous: boolean;
   profile_visibility: string;
 }

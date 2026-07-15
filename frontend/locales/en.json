@@ -61,6 +61,7 @@
     "statusText": "Status text",
     "updateStatus": "Update status",
     "statusSaved": "Status updated",
+    "noStatus": "No status set",
     "gamification": "Achievements",
     "level": "Level",
     "points": "points",

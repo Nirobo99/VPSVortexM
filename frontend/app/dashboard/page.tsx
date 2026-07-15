@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type AnnouncementItem } from "@/lib/api";
 import { Alert, Avatar, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -43,28 +44,26 @@ export default function DashboardPage() {
         </Alert>
       ))}
 
-      <Card className="mb-6">        <CardHeader className="flex flex-row items-center gap-4">
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center gap-4">
           <Avatar
             src={user.avatar_url}
             name={user.display_name || user.username}
+            admin={isAdminUser(user)}
             className="h-14 w-14"
           />
           <div>
             <CardTitle>{user.display_name || user.username}</CardTitle>
-            <CardDescription>@{user.username}</CardDescription>
-            {user.status_text && (
-              <p className="text-sm mt-1 text-muted-foreground">{user.status_text}</p>
-            )}
+            <CardDescription>
+              {formatUserStatus(user.status_emoji, user.status_text, t("profile.noStatus"))}
+            </CardDescription>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            <span>{t("profile.level")} {user.level}</span>
-            <span>{user.activity_points} {t("profile.points")}</span>
-            <span>{user.role}</span>
-            {user.totp_enabled && <span className="text-primary">2FA ✓</span>}
-          </div>
-        </CardContent>
+        {user.totp_enabled && (
+          <CardContent>
+            <span className="text-sm text-primary">2FA ✓</span>
+          </CardContent>
+        )}
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">

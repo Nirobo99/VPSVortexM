@@ -127,11 +127,13 @@ export function Avatar({
   name,
   className,
   online,
+  admin,
 }: {
   src: string | null;
   name: string;
   className?: string;
   online?: boolean;
+  admin?: boolean;
 }) {
   const [imgFailed, setImgFailed] = React.useState(false);
   const initials = name.slice(0, 2).toUpperCase();
@@ -142,23 +144,34 @@ export function Avatar({
   }, [src]);
 
   return (
-    <div className={cn("relative inline-flex shrink-0", className)}>
-      {showImage ? (
-        <img
-          src={src!}
-          alt={name}
-          className={cn("rounded-full object-cover bg-muted w-full h-full")}
-          onError={() => setImgFailed(true)}
-        />
-      ) : (
-        <div
-          className={cn(
-            "rounded-full bg-primary/30 text-primary flex items-center justify-center font-medium w-full h-full"
-          )}
+    <div className={cn("relative inline-flex shrink-0", admin && "pt-2", className)}>
+      {admin && (
+        <span
+          className="absolute top-0 left-1/2 -translate-x-1/2 z-10 text-base leading-none drop-shadow-sm"
+          aria-hidden
         >
-          {initials}
-        </div>
+          👑
+        </span>
       )}
+      <div
+        className={cn(
+          "relative w-full h-full rounded-full overflow-hidden",
+          admin && "ring-2 ring-amber-400 ring-offset-2 ring-offset-background"
+        )}
+      >
+        {showImage ? (
+          <img
+            src={src!}
+            alt={name}
+            className="rounded-full object-cover bg-muted w-full h-full"
+            onError={() => setImgFailed(true)}
+          />
+        ) : (
+          <div className="rounded-full bg-primary/30 text-primary flex items-center justify-center font-medium w-full h-full">
+            {initials}
+          </div>
+        )}
+      </div>
       {online !== undefined && (
         <span
           className={cn(

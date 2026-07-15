@@ -61,6 +61,7 @@
     "statusText": "Текст статуса",
     "updateStatus": "Обновить статус",
     "statusSaved": "Статус обновлён",
+    "noStatus": "Статус не задан",
     "gamification": "Достижения",
     "level": "Уровень",
     "points": "очков",

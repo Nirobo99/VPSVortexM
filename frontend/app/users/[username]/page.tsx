@@ -8,6 +8,7 @@ import { api, type PublicProfile, type Story } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
 import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 
 export default function PublicProfilePage() {
   const { t } = useTranslation();
@@ -94,20 +95,15 @@ export default function PublicProfilePage() {
               <Avatar
                 src={profile.avatar_url}
                 name={profile.display_name || profile.username}
+                admin={isAdminUser(profile)}
                 className="h-24 w-24 text-2xl mx-auto mb-3"
               />
               <CardTitle className="flex items-center justify-center gap-2">
                 {profile.display_name || profile.username}
                 {profile.is_verified && <span className="text-primary text-sm">✓</span>}
               </CardTitle>
-              <p className="text-muted-foreground">@{profile.username}</p>
-              {(profile.status_emoji || profile.status_text) && (
-                <p className="text-sm mt-1">
-                  {profile.status_emoji} {profile.status_text}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("profile.level")} {profile.level}
+              <p className="text-muted-foreground">
+                {formatUserStatus(profile.status_emoji, profile.status_text, t("profile.noStatus"))}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">

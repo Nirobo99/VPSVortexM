@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
-import { api, type Gamification, type Profile, type Story } from "@/lib/api";
+import { api, type Profile, type Story } from "@/lib/api";
+import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 import { sanitizeSvg } from "@/lib/sanitize";
 import {
   Alert,
@@ -27,7 +28,6 @@ export default function ProfilePage() {
   const router = useRouter();
   const { user, loading, reload } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [gamification, setGamification] = useState<Gamification | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,10 +42,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([api.getProfile(), api.getGamification(), api.getMyStories(), api.getQrSvg()])
-      .then(([p, g, s, qr]) => {
+    Promise.all([api.getProfile(), api.getMyStories(), api.getQrSvg()])
+      .then(([p, s, qr]) => {
         setProfile(p);
-        setGamification(g);
         setStories(s);
         setQrSvg(qr);
       })
@@ -154,13 +153,20 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <Avatar src={profile.avatar_url} name={profile.display_name || profile.username} className="h-20 w-20 text-lg" />
+              <Avatar
+                src={profile.avatar_url}
+                name={profile.display_name || profile.username}
+                admin={isAdminUser(profile)}
+                className="h-20 w-20 text-lg"
+              />
               <div>
                 <input ref={avatarRef} type="file" accept="image/*" className="hidden" onChange={onAvatarChange} />
                 <Button variant="outline" size="sm" onClick={() => avatarRef.current?.click()} disabled={saving}>
                   {t("profile.changeAvatar")}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-1">@{profile.username}</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {formatUserStatus(profile.status_emoji, profile.status_text, t("profile.noStatus"))}
+                </p>
               </div>
             </div>
             <div>
@@ -227,39 +233,6 @@ export default function ProfilePage() {
               </Button>
             </CardContent>
           </Card>
-
-          {gamification && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{t("profile.gamification")}</CardTitle>
-                <CardDescription>
-                  {t("profile.level")} {gamification.level} · {gamification.activity_points} {t("profile.points")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-2 rounded-full bg-muted overflow-hidden mb-4">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${gamification.progress_percent}%` }} />
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  {t("profile.nextLevel")}: {gamification.next_level_at} {t("profile.points")}
-                </p>
-                <div className="space-y-2">
-                  {gamification.achievements.map((a) => (
-                    <div
-                      key={a.code}
-                      className={`flex items-center gap-2 text-sm p-2 rounded-md ${a.earned ? "bg-primary/10" : "opacity-50"}`}
-                    >
-                      <span>{a.icon}</span>
-                      <div>
-                        <p className="font-medium">{a.title}</p>
-                        <p className="text-xs text-muted-foreground">{a.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           <Card>
             <CardHeader>

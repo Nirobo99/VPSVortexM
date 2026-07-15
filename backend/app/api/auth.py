@@ -198,6 +198,7 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         theme_primary=user.theme_primary,
         theme_accent=user.theme_accent,
         status_text=user.status_text,
+        status_emoji=user.status_emoji,
         is_verified=user.is_verified,
         totp_enabled=user.totp_enabled,
         activity_points=user.activity_points,

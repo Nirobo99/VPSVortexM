@@ -129,7 +129,7 @@ class ProfileService:
             "status_text": user.status_text,
             "status_emoji": user.status_emoji,
             "is_verified": user.is_verified,
-            "level": user.level,
+            "is_admin": user.role in (UserRole.ADMIN, UserRole.SUPERADMIN),
             "is_anonymous": user.is_anonymous,
             "profile_visibility": user.profile_visibility.value,
         }

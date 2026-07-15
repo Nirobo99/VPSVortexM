@@ -82,6 +82,7 @@ class UserMe(BaseModel):
     theme_primary: str | None
     theme_accent: str | None
     status_text: str | None
+    status_emoji: str | None = None
     is_verified: bool
     totp_enabled: bool
     activity_points: int

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
 import { Avatar, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { isAdminUser } from "@/lib/profileDisplay";
 
 const NAV = [
   { href: "/dashboard", key: "dashboard" },
@@ -120,7 +121,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="flex items-center gap-2 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 px-1.5 py-1 transition-colors"
             title={displayName}
           >
-            <Avatar src={user.avatar_url} name={displayName} className="h-8 w-8 sm:h-9 sm:w-9" />
+            <Avatar
+              src={user.avatar_url}
+              name={displayName}
+              admin={isAdminUser(user)}
+              className="h-8 w-8 sm:h-9 sm:w-9"
+            />
             <span className="hidden md:inline text-sm font-medium truncate max-w-[120px]">{displayName}</span>
           </Link>
           <LanguageSwitcher />
