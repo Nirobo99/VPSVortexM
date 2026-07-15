@@ -5,9 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env)
+DEV_COMPOSE=(docker compose -f docker-compose.yml)
 
 echo "==> Emergency restore"
-docker compose down --remove-orphans 2>/dev/null || true
+"${DEV_COMPOSE[@]}" down --remove-orphans 2>/dev/null || true
 
 if [[ -d certbot/conf/live/vortexm.ru ]]; then
   sed "s/YOUR_DOMAIN/vortexm.ru/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
@@ -23,11 +24,11 @@ echo "==> Start all services (use existing images, no rebuild)"
 sleep 12
 "${COMPOSE[@]}" up -d backend celery-worker celery-beat
 
-# Start frontend from ANY existing image — do not build here
-if docker images --format '{{.Repository}}' | grep -qx 'vortexm-frontend'; then
+# Start frontend from production image
+if docker image inspect vortexm-frontend-prod >/dev/null 2>&1; then
   "${COMPOSE[@]}" up -d frontend
 else
-  echo "WARN: no vortexm-frontend image — building minimal frontend (this takes time)..."
+  echo "Building vortexm-frontend-prod (first time or image removed)..."
   "${COMPOSE[@]}" build frontend
   "${COMPOSE[@]}" up -d frontend
 fi

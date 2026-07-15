@@ -5,9 +5,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BRANCH="${1:-feature/security-hardening}"
+DEV_COMPOSE=(docker compose -f docker-compose.yml)
 
 echo "========== VortexM diagnose =========="
 echo "Path: $ROOT"
+echo ""
+
+echo "--- DEV stack (must be stopped on production server) ---"
+"${DEV_COMPOSE[@]}" ps 2>/dev/null | head -5 || echo "dev stack not running (OK)"
 echo ""
 
 echo "--- Git ---"
@@ -36,6 +41,9 @@ echo "--- Frontend container ---"
 CID=$(docker compose -f docker-compose.prod.yml ps -q frontend 2>/dev/null || true)
 if [[ -n "$CID" ]]; then
   docker inspect "$CID" --format 'Image: {{.Config.Image}} Cmd: {{json .Config.Cmd}}' 2>/dev/null || true
+  docker inspect "$CID" --format '{{.Config.Image}}' 2>/dev/null | grep -q frontend-prod \
+    && echo "OK: using vortexm-frontend-prod image" \
+    || echo "FAIL: NOT vortexm-frontend-prod — dev image may be active"
   echo "Process list inside container:"
   docker exec "$CID" ps aux 2>/dev/null | head -6 || echo "(cannot exec)"
   echo "$CID" | xargs -I{} docker exec {} sh -c 'test -f server.js && echo "OK: server.js exists (production)" || echo "WARN: no server.js"' 2>/dev/null || true

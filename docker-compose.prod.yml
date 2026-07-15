@@ -1,6 +1,8 @@
 # Production stack for VortexM
 # Usage: docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 
+name: vortexm
+
 services:
   postgres:
     image: postgres:15-alpine
@@ -160,6 +162,7 @@ services:
       - internal
 
   frontend:
+    image: vortexm-frontend-prod
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
