@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
-import { Button } from "@/components/ui";
+import { Avatar, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -41,6 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   const navItems = NAV.filter((item) => !("adminOnly" in item) || user.has_admin_panel);
+  const displayName = user.display_name || user.username;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -59,13 +60,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <Link href="/wallet" className="text-sm font-medium text-primary hover:underline hidden sm:inline">
-            {user.wallet_balance.toLocaleString()} ₽
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 px-1.5 py-1 transition-colors"
+            title={displayName}
+          >
+            <Avatar src={user.avatar_url} name={displayName} className="h-8 w-8 sm:h-9 sm:w-9" />
+            <span className="hidden md:inline text-sm font-medium truncate max-w-[120px]">{displayName}</span>
           </Link>
           <LanguageSwitcher />
-          <Link href={`/users/${user.username}`} className="hidden sm:inline text-sm text-muted-foreground hover:text-foreground truncate max-w-[120px]">
-            {user.display_name || user.username}
-          </Link>
           <Button variant="outline" size="sm" onClick={logout}>
             {t("nav.logout")}
           </Button>
@@ -93,7 +96,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <span>{icon}</span>
-                {t(`nav.${key}`)}
+                <span className="flex-1">{t(`nav.${key}`)}</span>
+                {key === "wallet" && (
+                  <span className="text-xs font-semibold text-primary tabular-nums">
+                    {user.wallet_balance.toLocaleString()} ₽
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
