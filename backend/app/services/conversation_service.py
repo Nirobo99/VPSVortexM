@@ -33,8 +33,13 @@ class ConversationService:
             description=description,
             owner_id=owner.id,
             member_limit=DEFAULT_MEMBER_LIMIT,
-            is_public=is_public,
         )
+        # is_public may be absent until migration 015/016 applies.
+        if hasattr(Dialog, "is_public"):
+            try:
+                dialog.is_public = is_public
+            except Exception:
+                pass
         self.db.add(dialog)
         await self.db.flush()
 
@@ -103,17 +108,19 @@ class ConversationService:
         return items
 
     async def search_public_groups(self, user: User, query: str | None = None) -> list[dict]:
-        q = select(Dialog).where(Dialog.dialog_type == DialogType.GROUP, Dialog.is_public.is_(True))
-        if query:
-            like = f"%{query.strip()}%"
-            q = q.where(
-                Dialog.title.ilike(like) | Dialog.description.ilike(like)
-            )
-        result = await self.db.execute(q.order_by(Dialog.created_at.desc()).limit(50))
-        items = []
-        for dialog in result.scalars().all():
-            items.append(await self._group_dict(dialog, viewer_id=user.id))
-        return items
+        try:
+            q = select(Dialog).where(Dialog.dialog_type == DialogType.GROUP, Dialog.is_public.is_(True))
+            if query:
+                like = f"%{query.strip()}%"
+                q = q.where(Dialog.title.ilike(like) | Dialog.description.ilike(like))
+            result = await self.db.execute(q.order_by(Dialog.created_at.desc()).limit(50))
+            items = []
+            for dialog in result.scalars().all():
+                items.append(await self._group_dict(dialog, viewer_id=user.id))
+            return items
+        except Exception:
+            # Column is_public may be missing before migrations finish.
+            return []
 
     async def get_group(self, user: User, dialog_id: uuid.UUID) -> dict:
         result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP))
@@ -213,7 +220,7 @@ class ConversationService:
             "member_count": member_count,
             "member_limit": dialog.member_limit,
             "is_paid_extended": dialog.is_paid_extended,
-            "is_public": bool(dialog.is_public),
+            "is_public": bool(getattr(dialog, "is_public", False)),
             "is_member": is_member,
             "is_owner": bool(viewer_id and dialog.owner_id == viewer_id),
             "created_at": dialog.created_at.isoformat(),

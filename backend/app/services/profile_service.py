@@ -266,13 +266,22 @@ class ProfileService:
         return post
 
     async def get_user_posts(self, user_id: uuid.UUID) -> list[ProfilePost]:
-        result = await self.db.execute(
-            select(ProfilePost)
-            .where(ProfilePost.user_id == user_id)
-            .options(selectinload(ProfilePost.comments))
-            .order_by(ProfilePost.created_at.desc())
-        )
-        return list(result.scalars().all())
+        # Prefer loading comments for counts; fall back if table is not migrated yet.
+        try:
+            result = await self.db.execute(
+                select(ProfilePost)
+                .where(ProfilePost.user_id == user_id)
+                .options(selectinload(ProfilePost.comments))
+                .order_by(ProfilePost.created_at.desc())
+            )
+            return list(result.scalars().unique().all())
+        except Exception:
+            result = await self.db.execute(
+                select(ProfilePost)
+                .where(ProfilePost.user_id == user_id)
+                .order_by(ProfilePost.created_at.desc())
+            )
+            return list(result.scalars().all())
 
     async def delete_profile_post(self, user: User, post_id: uuid.UUID) -> None:
         result = await self.db.execute(

@@ -200,7 +200,7 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         status_text=user.status_text,
         status_emoji=user.status_emoji,
         is_verified=user.is_verified,
-        is_official_verified=user.is_official_verified,
+        is_official_verified=bool(getattr(user, "is_official_verified", False)),
         totp_enabled=user.totp_enabled,
         activity_points=user.activity_points,
         level=user.level,

@@ -34,6 +34,47 @@ limiter = Limiter(key_func=_rate_limit_key)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_sensitive_logging()
+    # Soft schema repairs so a failed alembic run does not keep the API offline.
+    try:
+        from sqlalchemy import text
+
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                      IF EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'dialogs'
+                      ) AND NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'dialogs' AND column_name = 'is_public'
+                      ) THEN
+                        ALTER TABLE dialogs
+                          ADD COLUMN is_public boolean NOT NULL DEFAULT false;
+                        UPDATE dialogs
+                          SET is_public = true
+                          WHERE dialog_type::text ILIKE 'group';
+                      END IF;
+
+                      IF EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'users'
+                      ) AND NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'users' AND column_name = 'is_official_verified'
+                      ) THEN
+                        ALTER TABLE users
+                          ADD COLUMN is_official_verified boolean NOT NULL DEFAULT false;
+                      END IF;
+                    END $$;
+                    """
+                )
+            )
+            await db.commit()
+    except Exception:
+        logger.exception("Soft schema repair skipped")
     yield
     await close_redis()
 

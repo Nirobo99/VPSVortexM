@@ -727,15 +727,18 @@ class ChannelService:
         }
 
     async def list_verification_requests(self, status: str | None = None) -> list[dict]:
-        q = (
-            select(ChannelVerificationRequest, Channel)
-            .join(Channel, Channel.id == ChannelVerificationRequest.channel_id)
-            .order_by(ChannelVerificationRequest.created_at.desc())
-        )
-        if status:
-            q = q.where(ChannelVerificationRequest.status == status)
-        result = await self.db.execute(q.limit(100))
-        return [self._verification_dict(req, ch) for req, ch in result.all()]
+        try:
+            q = (
+                select(ChannelVerificationRequest, Channel)
+                .join(Channel, Channel.id == ChannelVerificationRequest.channel_id)
+                .order_by(ChannelVerificationRequest.created_at.desc())
+            )
+            if status:
+                q = q.where(ChannelVerificationRequest.status == status)
+            result = await self.db.execute(q.limit(100))
+            return [self._verification_dict(req, ch) for req, ch in result.all()]
+        except Exception:
+            return []
 
     async def review_verification_request(
         self,

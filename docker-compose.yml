@@ -99,9 +99,9 @@ services:
       minio:
         condition: service_healthy
     command: >
-      sh -c "alembic upgrade head &&
-             python -m app.scripts.seed &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "alembic upgrade head || { echo 'WARNING: alembic upgrade failed'; alembic current || true; }
+             python -m app.scripts.seed || echo 'WARNING: seed failed'
+             exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
   celery-worker:
     build:

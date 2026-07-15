@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 
 const URL_RE = /https?:\/\/[^\s<]+[^<.,:;"')\]\s]/g;
 
@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function LinkifiedText({ text, className }: Props) {
-  const nodes: React.ReactNode[] = [];
+  const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   const re = new RegExp(URL_RE.source, "g");

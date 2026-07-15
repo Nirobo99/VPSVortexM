@@ -364,7 +364,7 @@ async def get_channel_verification(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     if not data:
-        return JSONResponse(content=None)
+        return JSONResponse(status_code=200, content=None)
     return ChannelVerificationResponse(**data)
 
 

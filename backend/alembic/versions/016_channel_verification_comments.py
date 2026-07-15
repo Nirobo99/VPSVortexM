@@ -21,6 +21,41 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
 
+    # Ensure wall table exists before FK from profile_post_comments.
+    if not inspector.has_table("profile_posts"):
+        op.create_table(
+            "profile_posts",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+            sa.Column(
+                "user_id",
+                postgresql.UUID(as_uuid=True),
+                sa.ForeignKey("users.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column("media_url", sa.String(512), nullable=True),
+            sa.Column("media_type", sa.String(16), nullable=False, server_default="text"),
+            sa.Column("text", sa.Text(), nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.func.now(),
+                nullable=False,
+            ),
+        )
+        op.create_index("ix_profile_posts_user_id", "profile_posts", ["user_id"])
+        inspector = sa.inspect(bind)
+
+    if inspector.has_table("dialogs"):
+        dialog_cols = {c["name"] for c in inspector.get_columns("dialogs")}
+        if "is_public" not in dialog_cols:
+            op.add_column(
+                "dialogs",
+                sa.Column("is_public", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+            )
+            op.execute(
+                sa.text("UPDATE dialogs SET is_public = true WHERE dialog_type::text ILIKE 'group'")
+            )
+
     if not inspector.has_table("channel_verification_requests"):
         op.create_table(
             "channel_verification_requests",
