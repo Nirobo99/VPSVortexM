@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "VortexM — Мессенджер",
   description: "Безопасный мессенджер нового поколения",
   manifest: "/manifest.json",
+  other: {
+    "vortexm-build": process.env.NEXT_PUBLIC_BUILD_ID ?? "dev",
+  },
   icons: {
     icon: [
       { url: "/favicon.jpg", type: "image/jpeg" },

@@ -1021,6 +1021,25 @@ curl -s https://vortexm.ru/ | grep -o animated-bg && echo " OK: new frontend"
 
 ### 11.1. «Сообщения работают, а UI старый»
 
+**Диагностика на сервере:**
+
+```bash
+cd /opt/vortexm
+chmod +x scripts/diagnose-prod.sh scripts/fix-frontend-prod.sh
+./scripts/diagnose-prod.sh
+```
+
+**Частая причина:** на сервере крутится **dev-frontend** (`docker compose` без `-f docker-compose.prod.yml`) — в HTML будет `turbopack`, а UI не обновится.
+
+**Исправление одной командой:**
+
+```bash
+cd /opt/vortexm
+./scripts/fix-frontend-prod.sh feature/security-hardening
+```
+
+Скрипт: останавливает dev-стек, делает `git reset --hard` на актуальный коммит, пересобирает **production** frontend и проверяет `landing-frame` в HTML.
+
 Так бывает, если обновился только **backend** (ручной патч или `up -d backend` без `--build frontend`).
 
 1. На сервере: `git log -1 --oneline` — есть ли коммит `feat: messaging fixes, presence, wallet transfer, UI overhaul`?
