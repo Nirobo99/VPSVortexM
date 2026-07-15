@@ -35,96 +35,120 @@ limiter = Limiter(key_func=_rate_limit_key)
 async def lifespan(app: FastAPI):
     configure_sensitive_logging()
     # Soft schema repairs so a failed alembic run does not keep the API offline.
+    # Each statement is separate so one failure does not skip the rest.
+    repairs = [
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'dialogs'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'dialogs' AND column_name = 'is_public'
+          ) THEN
+            ALTER TABLE dialogs
+              ADD COLUMN is_public boolean NOT NULL DEFAULT false;
+            UPDATE dialogs
+              SET is_public = true
+              WHERE dialog_type::text ILIKE 'group';
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'users' AND column_name = 'is_official_verified'
+          ) THEN
+            ALTER TABLE users
+              ADD COLUMN is_official_verified boolean NOT NULL DEFAULT false;
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'profile_posts'
+          ) THEN
+            CREATE TABLE profile_posts (
+              id uuid PRIMARY KEY,
+              user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              media_url varchar(512),
+              media_type varchar(16) NOT NULL DEFAULT 'text',
+              text text,
+              created_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_profile_posts_user_id ON profile_posts (user_id);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'profile_posts'
+              AND column_name = 'media_type'
+              AND udt_name = 'profilepostmediatype'
+          ) THEN
+            ALTER TABLE profile_posts ALTER COLUMN media_type DROP DEFAULT;
+            ALTER TABLE profile_posts
+              ALTER COLUMN media_type TYPE varchar(16)
+              USING lower(media_type::text);
+            ALTER TABLE profile_posts ALTER COLUMN media_type SET DEFAULT 'text';
+            DROP TYPE IF EXISTS profilepostmediatype;
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_name = 'profile_post_comments'
+          ) THEN
+            CREATE TABLE profile_post_comments (
+              id uuid PRIMARY KEY,
+              post_id uuid NOT NULL REFERENCES profile_posts(id) ON DELETE CASCADE,
+              author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              content text NOT NULL,
+              created_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_profile_post_comments_post_id
+              ON profile_post_comments (post_id);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channels'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'channels' AND column_name = 'is_verified'
+          ) THEN
+            ALTER TABLE channels
+              ADD COLUMN is_verified boolean NOT NULL DEFAULT false;
+          END IF;
+        END $$;
+        """,
+    ]
     try:
         from sqlalchemy import text
 
         async with AsyncSessionLocal() as db:
-            await db.execute(
-                text(
-                    """
-                    DO $$
-                    BEGIN
-                      IF EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_name = 'dialogs'
-                      ) AND NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'dialogs' AND column_name = 'is_public'
-                      ) THEN
-                        ALTER TABLE dialogs
-                          ADD COLUMN is_public boolean NOT NULL DEFAULT false;
-                        UPDATE dialogs
-                          SET is_public = true
-                          WHERE dialog_type::text ILIKE 'group';
-                      END IF;
-
-                      IF EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_name = 'users'
-                      ) AND NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'users' AND column_name = 'is_official_verified'
-                      ) THEN
-                        ALTER TABLE users
-                          ADD COLUMN is_official_verified boolean NOT NULL DEFAULT false;
-                      END IF;
-
-                      IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_name = 'profile_posts'
-                      ) THEN
-                        CREATE TABLE profile_posts (
-                          id uuid PRIMARY KEY,
-                          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                          media_url varchar(512),
-                          media_type varchar(16) NOT NULL DEFAULT 'text',
-                          text text,
-                          created_at timestamptz NOT NULL DEFAULT now()
-                        );
-                        CREATE INDEX IF NOT EXISTS ix_profile_posts_user_id ON profile_posts (user_id);
-                      END IF;
-
-                      IF EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'profile_posts'
-                          AND column_name = 'media_type'
-                          AND udt_name = 'profilepostmediatype'
-                      ) THEN
-                        ALTER TABLE profile_posts
-                          ALTER COLUMN media_type TYPE varchar(16)
-                          USING lower(media_type::text);
-                      END IF;
-
-                      IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_name = 'profile_post_comments'
-                      ) THEN
-                        CREATE TABLE profile_post_comments (
-                          id uuid PRIMARY KEY,
-                          post_id uuid NOT NULL REFERENCES profile_posts(id) ON DELETE CASCADE,
-                          author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                          content text NOT NULL,
-                          created_at timestamptz NOT NULL DEFAULT now()
-                        );
-                        CREATE INDEX IF NOT EXISTS ix_profile_post_comments_post_id
-                          ON profile_post_comments (post_id);
-                      END IF;
-
-                      IF EXISTS (
-                        SELECT 1 FROM information_schema.tables
-                        WHERE table_name = 'channels'
-                      ) AND NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'channels' AND column_name = 'is_verified'
-                      ) THEN
-                        ALTER TABLE channels
-                          ADD COLUMN is_verified boolean NOT NULL DEFAULT false;
-                      END IF;
-                    END $$;
-                    """
-                )
-            )
-            await db.commit()
+            for sql in repairs:
+                try:
+                    await db.execute(text(sql))
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    logger.exception("Soft schema repair step failed")
     except Exception:
         logger.exception("Soft schema repair skipped")
     yield

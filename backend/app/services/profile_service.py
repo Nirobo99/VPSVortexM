@@ -261,7 +261,11 @@ class ProfileService:
         try:
             await self.gamification.add_points(user, "story_post")
         except Exception:
-            pass
+            # Gamification must not abort the request after the post is saved.
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
         return post
 
     async def get_user_posts(self, user_id: uuid.UUID) -> list[ProfilePost]:
