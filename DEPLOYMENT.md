@@ -1058,10 +1058,18 @@ chmod +x scripts/diagnose-prod.sh scripts/fix-frontend-prod.sh
 
 ```bash
 cd /opt/vortexm
+git pull origin feature/security-hardening
 ./scripts/fix-frontend-prod.sh feature/security-hardening
 ```
 
-Скрипт: останавливает dev-стек, делает `git reset --hard` на актуальный коммит, пересобирает **production** frontend и проверяет `landing-frame` в HTML.
+⚠️ **На сервере НИКОГДА не запускайте** `docker compose up` **без** `-f docker-compose.prod.yml` — это поднимает **dev-frontend** (`npm run dev`, в HTML будет `turbopack`), и сайт покажет старый UI.
+
+Правильно:
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Скрипт: останавливает оба стека, делает `git reset --hard`, пересобирает **production** frontend и проверяет `landing-frame` в HTML.
 
 Так бывает, если обновился только **backend** (ручной патч или `up -d backend` без `--build frontend`).
 
