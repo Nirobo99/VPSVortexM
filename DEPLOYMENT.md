@@ -1083,4 +1083,26 @@ docker compose -f docker-compose.prod.yml up -d
 
 **Важно:** после `git pull` проверьте `backend/app/models/messaging.py` — поле `dialog_type` должно быть **один раз** (без дубликата).
 
-**Аватары:** убедитесь, что в `.env` указано `S3_PUBLIC_URL=https://vortexm.ru/media`, `NGINX_CONFIG=./nginx/nginx.prod.conf` и nginx проксирует `/media/` на MinIO.
+### 11.2. Сайт недоступен — экстренное восстановление
+
+```bash
+cd /opt/vortexm
+git pull origin feature/security-hardening
+chmod +x scripts/restore-prod.sh
+./scripts/restore-prod.sh
+```
+
+Скрипт поднимает prod-стек **без** полного `docker compose down`. Если frontend-образ удалён — пересоберёт его.
+
+**Если restore-prod.sh недоступен — вручную:**
+
+```bash
+cd /opt/vortexm
+sed "s/YOUR_DOMAIN/vortexm.ru/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
+docker compose -f docker-compose.prod.yml --env-file .env up -d postgres redis minio livekit
+sleep 12
+docker compose -f docker-compose.prod.yml --env-file .env up -d backend celery-worker celery-beat frontend nginx
+docker compose -f docker-compose.prod.yml ps
+```
+
+**Аватары:** убедитесь, что в `.env` указано `S3_PUBLIC_URL=https://vortexm.ru/media`, `NGINX_CONFIG=./nginx/nginx.prod.active.conf` и nginx проксирует `/media/` на MinIO.
