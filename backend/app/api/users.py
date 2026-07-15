@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -97,12 +97,15 @@ async def update_status(
     return ProfileService.user_to_dict(user, full=True)
 
 
-@router.get("/me/verification", response_model=VerificationRequestResponse | None)
+@router.get("/me/verification")
 async def get_my_verification(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     service = VerificationService(db)
-    req = await service.get_latest_for_user(user.id)
+    try:
+        req = await service.get_latest_for_user(user.id)
+    except Exception:
+        return JSONResponse(content=None)
     if not req:
-        return None
+        return JSONResponse(content=None)
     return VerificationRequestResponse(**service.request_to_dict(req))
 
 

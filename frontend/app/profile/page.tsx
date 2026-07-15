@@ -54,7 +54,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([api.getProfile(), api.getMyStories(), api.getMyPosts(), api.getMyVerificationRequest()])
+    Promise.all([
+      api.getProfile(),
+      api.getMyStories(),
+      api.getMyPosts(),
+      api.getMyVerificationRequest().catch(() => null),
+    ])
       .then(([p, s, wall, v]) => {
         setProfile(p);
         setStories(s);

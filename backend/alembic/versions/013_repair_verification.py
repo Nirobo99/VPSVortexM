@@ -1,7 +1,7 @@
-"""official profile verification requests
+"""repair verification schema if migration 012 partially applied
 
-Revision ID: 012_verification
-Revises: 011_profile_posts
+Revision ID: 013_repair_verification
+Revises: 012_verification
 Create Date: 2026-07-15
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "012_verification"
-down_revision: Union[str, None] = "011_profile_posts"
+revision: str = "013_repair_verification"
+down_revision: Union[str, None] = "012_verification"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -74,14 +74,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    if inspector.has_table("verification_requests"):
-        op.drop_index("ix_verification_requests_status", table_name="verification_requests")
-        op.drop_index("ix_verification_requests_user_id", table_name="verification_requests")
-        op.drop_table("verification_requests")
-    user_columns = {col["name"] for col in inspector.get_columns("users")}
-    if "is_official_verified" in user_columns:
-        op.drop_column("users", "is_official_verified")
-    sa.Enum(name="verificationrequeststatus").drop(bind, checkfirst=True)
-    sa.Enum(name="verificationapplicanttype").drop(bind, checkfirst=True)
+    pass

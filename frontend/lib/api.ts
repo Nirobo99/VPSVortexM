@@ -411,13 +411,15 @@ function authHeaders(json = true): HeadersInit {
   return headers;
 }
 
-function parseError(data: Record<string, unknown>): string {
+function parseError(data: Record<string, unknown>, status?: number): string {
   const detail = data.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && detail[0] && typeof detail[0] === "object" && "msg" in detail[0]) {
     return String((detail[0] as { msg: string }).msg);
   }
   if (typeof data.message === "string") return data.message;
+  if (status === 502 || status === 503) return "Server unavailable";
+  if (status && status >= 500) return "Server error — try again or contact support";
   return "Request failed";
 }
 
@@ -430,9 +432,25 @@ class ApiClient {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(parseError(data as Record<string, unknown>));
+      throw new Error(parseError(data as Record<string, unknown>, res.status));
     }
     return data as T;
+  }
+
+  private async requestNullable<T>(path: string, options: RequestInit = {}, auth = false): Promise<T | null> {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { ...(auth ? authHeaders() : authHeaders()), ...options.headers },
+      credentials: "include",
+    });
+    if (res.status === 204) return null;
+    const text = await res.text();
+    if (!res.ok) {
+      const data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+      throw new Error(parseError(data, res.status));
+    }
+    if (!text || text === "null") return null;
+    return JSON.parse(text) as T;
   }
 
   private async requestRaw(path: string, options: RequestInit = {}): Promise<Response> {
@@ -443,7 +461,7 @@ class ApiClient {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(parseError(data as Record<string, unknown>));
+      throw new Error(parseError(data as Record<string, unknown>, res.status));
     }
     return res;
   }
@@ -526,7 +544,7 @@ class ApiClient {
   }
 
   getMyVerificationRequest() {
-    return this.request<VerificationRequest | null>("/users/me/verification", {}, true);
+    return this.requestNullable<VerificationRequest>("/users/me/verification", {}, true);
   }
 
   submitVerificationRequest(body: {
@@ -631,7 +649,7 @@ class ApiClient {
   }
 
   getMyPosts() {
-    return this.request<ProfilePost[]>("/users/me/posts", {}, true);
+    return this.request<ProfilePost[]>("/users/me/posts", {}, true).catch(() => []);
   }
 
   async createProfilePost(text: string | null, file?: File) {
