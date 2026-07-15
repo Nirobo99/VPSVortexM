@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
@@ -10,15 +10,18 @@ import { Avatar, Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/dashboard", key: "dashboard", icon: "🏠" },
-  { href: "/chats", key: "chats", icon: "💬" },
-  { href: "/channels", key: "channels", icon: "📢" },
-  { href: "/groups", key: "groups", icon: "👥" },
-  { href: "/wallet", key: "wallet", icon: "💳" },
-  { href: "/profile", key: "profile", icon: "👤" },
-  { href: "/settings", key: "settings", icon: "⚙️" },
-  { href: "/admin/login", key: "admin", icon: "🛡️", adminOnly: true },
+  { href: "/dashboard", key: "dashboard" },
+  { href: "/chats", key: "chats" },
+  { href: "/channels", key: "channels" },
+  { href: "/groups", key: "groups" },
+  { href: "/wallet", key: "wallet" },
+  { href: "/profile", key: "profile" },
+  { href: "/settings", key: "settings" },
+  { href: "/admin/login", key: "admin", adminOnly: true },
 ] as const;
+
+/** Hide menu after this many ms without interaction */
+const MENU_IDLE_MS = 3500;
 
 function navActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -29,6 +32,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimer.current) {
+      clearTimeout(idleTimer.current);
+      idleTimer.current = null;
+    }
+  }, []);
+
+  const scheduleHide = useCallback(() => {
+    clearIdleTimer();
+    idleTimer.current = setTimeout(() => setMenuOpen(false), MENU_IDLE_MS);
+  }, [clearIdleTimer]);
+
+  const closeMenu = useCallback(() => {
+    clearIdleTimer();
+    setMenuOpen(false);
+  }, [clearIdleTimer]);
+
+  const toggleMenu = useCallback(() => {
+    setMenuOpen((open) => {
+      if (open) {
+        clearIdleTimer();
+        return false;
+      }
+      scheduleHide();
+      return true;
+    });
+  }, [clearIdleTimer, scheduleHide]);
+
+  const bumpIdle = useCallback(() => {
+    if (menuOpen) scheduleHide();
+  }, [menuOpen, scheduleHide]);
+
+  useEffect(() => {
+    return () => clearIdleTimer();
+  }, [clearIdleTimer]);
+
+  useEffect(() => {
+    closeMenu();
+  }, [pathname, closeMenu]);
 
   if (loading) {
     return (
@@ -49,11 +93,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="p-2 rounded-lg hover:bg-muted lg:hidden"
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-label="Menu"
+            className="p-2 rounded-lg hover:bg-muted"
+            onClick={toggleMenu}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
           >
-            <span className="text-xl">{menuOpen ? "✕" : "☰"}</span>
+            <span className="block w-5 space-y-1" aria-hidden>
+              <span className={cn("block h-0.5 bg-foreground transition-transform", menuOpen && "translate-y-1.5 rotate-45")} />
+              <span className={cn("block h-0.5 bg-foreground transition-opacity", menuOpen && "opacity-0")} />
+              <span className={cn("block h-0.5 bg-foreground transition-transform", menuOpen && "-translate-y-1.5 -rotate-45")} />
+            </span>
           </button>
           <Link href="/dashboard" className="text-xl font-bold text-primary">
             {t("app.name")}
@@ -77,17 +126,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex flex-1 relative">
         <aside
+          onMouseEnter={clearIdleTimer}
+          onMouseLeave={() => {
+            if (menuOpen) scheduleHide();
+          }}
+          onFocusCapture={clearIdleTimer}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              scheduleHide();
+            }
+          }}
+          onPointerDown={bumpIdle}
           className={cn(
-            "fixed lg:static inset-y-0 left-0 z-20 w-64 border-r border-border bg-background/98 backdrop-blur pt-16 lg:pt-0 transition-transform duration-200",
-            menuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+            "fixed left-0 z-30 w-64 max-w-[85vw] border-r border-border bg-background/98 backdrop-blur shadow-xl",
+            "top-[calc(var(--dev-notice-offset,0px)+3.5rem)] bottom-0",
+            "transition-transform duration-200 ease-out",
+            menuOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
           )}
         >
-          <nav className="p-3 space-y-1">
-            {navItems.map(({ href, key, icon }) => (
+          <nav className="p-3 space-y-1 overflow-y-auto h-full">
+            {navItems.map(({ href, key }) => (
               <Link
                 key={href}
                 href={href}
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMenu}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
                   navActive(pathname, href)
@@ -95,7 +157,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                <span>{icon}</span>
                 <span className="flex-1">{t(`nav.${key}`)}</span>
                 {key === "wallet" && (
                   <span className="text-xs font-semibold text-primary tabular-nums">
@@ -110,8 +171,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {menuOpen && (
           <button
             type="button"
-            className="fixed inset-0 bg-black/40 z-10 lg:hidden"
-            onClick={() => setMenuOpen(false)}
+            className="fixed inset-0 z-20 bg-black/35"
+            style={{ top: "calc(var(--dev-notice-offset, 0px) + 3.5rem)" }}
+            onClick={closeMenu}
             aria-label="Close menu"
           />
         )}
