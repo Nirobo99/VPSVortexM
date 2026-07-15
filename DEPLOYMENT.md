@@ -892,6 +892,29 @@ docker compose -f docker-compose.prod.yml up -d --build frontend
 3. DNS: `nslookup vortexm.ru` — правильный ли IP?
 4. Логи: `docker compose -f docker-compose.prod.yml logs nginx`
 
+#### nginx в статусе Restarting — `host not found in upstream "livekit:7880"`
+
+Контейнер **livekit** не запущен, а nginx при старте не может найти хост.
+
+**Быстрое решение:**
+
+```bash
+docker compose -f docker-compose.prod.yml up -d livekit
+docker compose -f docker-compose.prod.yml restart nginx
+```
+
+**Постоянное решение** (в новых версиях nginx-конфигов используется Docker DNS `resolve`):
+
+```bash
+git pull origin feature/security-hardening
+sed "s/YOUR_DOMAIN/vortexm.ru/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
+docker compose -f docker-compose.prod.yml up -d --force-recreate nginx
+```
+
+#### Предупреждение `The "qw9" variable is not set`
+
+В `.env` в пароле есть символ `$` — Docker Compose воспринимает его как переменную. Замените каждый `$` на `$$` (например `pass$$word` вместо `pass$word`).
+
 #### 502 Bad Gateway
 
 Backend ещё запускается (миграции). Подождите 1–2 минуты.  
