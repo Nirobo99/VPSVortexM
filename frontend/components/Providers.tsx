@@ -7,6 +7,7 @@ import { CallProvider } from "@/components/calls/CallProvider";
 import { HotkeysProvider } from "@/components/HotkeysProvider";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { DevNoticeBanner } from "@/components/DevNoticeBanner";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -14,6 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         <CallProvider>
           <HotkeysProvider>
+            <DevNoticeBanner />
             <OfflineBanner />
             {children}
             <PwaInstallBanner />

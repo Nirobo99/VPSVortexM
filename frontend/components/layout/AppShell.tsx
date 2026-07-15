@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur z-30">
+      <header className="border-b border-border px-4 py-3 flex items-center justify-between sticky top-[var(--dev-notice-offset,0px)] bg-background/95 backdrop-blur z-40">
         <div className="flex items-center gap-3">
           <button
             type="button"
