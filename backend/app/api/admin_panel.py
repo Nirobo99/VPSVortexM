@@ -25,10 +25,11 @@ from app.schemas.admin_panel import (
     WalletAdjustRequest,
 )
 from app.schemas.auth import MessageResponse
-from app.schemas.profile import AnonymousUserCreateRequest, ProfileResponse
+from app.schemas.profile import AnonymousUserCreateRequest, ProfileResponse, VerificationReviewRequest
 from app.services.admin_auth_service import AdminAuthService
 from app.services.admin_panel_service import AdminPanelService
 from app.services.profile_service import ProfileService
+from app.services.verification_service import VerificationService
 
 router = APIRouter(prefix="/admin", tags=["admin-panel"])
 
@@ -254,6 +255,34 @@ async def resolve_complaint(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"admin.{e}", lang))
+
+
+# ── Verification ───────────────────────────────────────────
+
+@router.get("/verification")
+async def list_verification_requests(
+    status: str | None = Query(None),
+    admin: AdminContext = Depends(require_permission("users", "verify")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await VerificationService(db).list_requests(status)
+
+
+@router.post("/verification/{request_id}/review")
+async def review_verification_request(
+    request_id: str,
+    body: VerificationReviewRequest,
+    request: Request,
+    admin: AdminContext = Depends(require_permission("users", "verify")),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    try:
+        return await VerificationService(db).review(
+            admin.user, uuid.UUID(request_id), body.approve, body.admin_note
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"verification.{e}", lang))
 
 
 # ── Ads ────────────────────────────────────────────────────

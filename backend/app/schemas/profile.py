@@ -38,6 +38,52 @@ class StatusUpdateRequest(BaseModel):
     status_emoji: str | None = Field(None, max_length=16)
 
 
+class VerificationSubmitRequest(BaseModel):
+    applicant_type: str = Field(pattern="^(individual|organization)$")
+    first_name: str | None = Field(None, max_length=128)
+    last_name: str | None = Field(None, max_length=128)
+    patronymic: str | None = Field(None, max_length=128)
+    birth_date: datetime | None = None
+    legal_entity_name: str | None = Field(None, max_length=256)
+    legal_inn: str | None = Field(None, max_length=32)
+    legal_ogrn: str | None = Field(None, max_length=32)
+    legal_address: str | None = Field(None, max_length=2000)
+    reason: str = Field(min_length=20, max_length=4000)
+    link_vk_group: str | None = Field(None, max_length=512)
+    link_vk_page: str | None = Field(None, max_length=512)
+    link_instagram: str | None = Field(None, max_length=512)
+    link_telegram: str | None = Field(None, max_length=512)
+
+
+class VerificationRequestResponse(BaseModel):
+    id: str
+    user_id: str
+    username: str | None = None
+    applicant_type: str
+    first_name: str | None
+    last_name: str | None
+    patronymic: str | None
+    birth_date: str | None
+    legal_entity_name: str | None
+    legal_inn: str | None
+    legal_ogrn: str | None
+    legal_address: str | None
+    reason: str
+    link_vk_group: str | None
+    link_vk_page: str | None
+    link_instagram: str | None
+    link_telegram: str | None
+    status: str
+    admin_note: str | None
+    reviewed_at: str | None
+    created_at: str | None
+
+
+class VerificationReviewRequest(BaseModel):
+    approve: bool
+    admin_note: str | None = Field(None, max_length=2000)
+
+
 class BlockUserRequest(BaseModel):
     user_id: str
 
@@ -74,6 +120,7 @@ class ProfileResponse(BaseModel):
     status_text: str | None
     status_emoji: str | None
     is_verified: bool
+    is_official_verified: bool = False
     is_anonymous: bool
     anonymous_mask_face: bool
     anonymous_mask_voice: bool
@@ -94,6 +141,7 @@ class PublicProfileResponse(BaseModel):
     status_text: str | None
     status_emoji: str | None
     is_verified: bool
+    is_official_verified: bool = False
     is_admin: bool = False
     is_anonymous: bool
     profile_visibility: str

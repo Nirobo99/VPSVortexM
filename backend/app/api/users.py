@@ -21,10 +21,13 @@ from app.schemas.profile import (
     StoryCreateResponse,
     ThemeUpdateRequest,
     UsernameChangeRequest,
+    VerificationSubmitRequest,
+    VerificationRequestResponse,
     ProfilePostResponse,
 )
 from app.services.profile_service import ProfileService
 from app.services.storage_service import StorageService
+from app.services.verification_service import VerificationService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -92,6 +95,31 @@ async def update_status(
     service = ProfileService(db)
     user = await service.update_status(user, body.status_text, body.status_emoji)
     return ProfileService.user_to_dict(user, full=True)
+
+
+@router.get("/me/verification", response_model=VerificationRequestResponse | None)
+async def get_my_verification(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    service = VerificationService(db)
+    req = await service.get_latest_for_user(user.id)
+    if not req:
+        return None
+    return VerificationRequestResponse(**service.request_to_dict(req))
+
+
+@router.post("/me/verification", response_model=VerificationRequestResponse, status_code=status.HTTP_201_CREATED)
+async def submit_verification(
+    body: VerificationSubmitRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = VerificationService(db)
+    try:
+        req = await service.submit(user, body.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"verification.{e}", lang))
+    return VerificationRequestResponse(**service.request_to_dict(req))
 
 
 @router.post("/me/avatar", response_model=ProfileResponse)

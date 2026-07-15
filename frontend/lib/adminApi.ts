@@ -1,3 +1,5 @@
+import type { VerificationRequest } from "./api";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 export interface AdminUser {
@@ -145,7 +147,18 @@ export const adminApi = {
   verifyUser(id: string, verified: boolean) {
     return adminRequest(`/admin/users/${id}`, {
       method: "PATCH",
-      body: JSON.stringify({ is_verified: verified }),
+      body: JSON.stringify({ is_official_verified: verified }),
+    });
+  },
+  listVerificationRequests(status?: string) {
+    return adminRequest<VerificationRequest[]>(
+      `/admin/verification${status ? `?status=${status}` : ""}`
+    );
+  },
+  reviewVerificationRequest(id: string, approve: boolean, adminNote?: string) {
+    return adminRequest(`/admin/verification/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify({ approve, admin_note: adminNote || null }),
     });
   },
   channels(q?: string) {

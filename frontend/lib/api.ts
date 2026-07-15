@@ -21,6 +21,7 @@ export interface UserMe {
   status_text: string | null;
   status_emoji: string | null;
   is_verified: boolean;
+  is_official_verified: boolean;
   totp_enabled: boolean;
   activity_points: number;
   level: number;
@@ -49,6 +50,7 @@ export interface PublicProfile {
   status_text: string | null;
   status_emoji: string | null;
   is_verified: boolean;
+  is_official_verified: boolean;
   is_admin: boolean;
   is_anonymous: boolean;
   profile_visibility: string;
@@ -69,6 +71,30 @@ export interface ProfilePost {
   media_type: string;
   text: string | null;
   created_at: string;
+}
+
+export interface VerificationRequest {
+  id: string;
+  user_id: string;
+  username?: string | null;
+  applicant_type: string;
+  first_name: string | null;
+  last_name: string | null;
+  patronymic: string | null;
+  birth_date: string | null;
+  legal_entity_name: string | null;
+  legal_inn: string | null;
+  legal_ogrn: string | null;
+  legal_address: string | null;
+  reason: string;
+  link_vk_group: string | null;
+  link_vk_page: string | null;
+  link_instagram: string | null;
+  link_telegram: string | null;
+  status: string;
+  admin_note: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
 }
 
 export interface BlockedUser {
@@ -497,6 +523,33 @@ class ApiClient {
 
   getProfile() {
     return this.request<Profile>("/users/me/profile", {}, true);
+  }
+
+  getMyVerificationRequest() {
+    return this.request<VerificationRequest | null>("/users/me/verification", {}, true);
+  }
+
+  submitVerificationRequest(body: {
+    applicant_type: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    patronymic?: string | null;
+    birth_date?: string | null;
+    legal_entity_name?: string | null;
+    legal_inn?: string | null;
+    legal_ogrn?: string | null;
+    legal_address?: string | null;
+    reason: string;
+    link_vk_group?: string | null;
+    link_vk_page?: string | null;
+    link_instagram?: string | null;
+    link_telegram?: string | null;
+  }) {
+    return this.request<VerificationRequest>(
+      "/users/me/verification",
+      { method: "POST", body: JSON.stringify(body) },
+      true
+    );
   }
 
   updateProfile(body: {

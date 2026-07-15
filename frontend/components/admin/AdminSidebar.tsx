@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/admin", key: "dashboard", resource: "dashboard", action: "view", exact: true },
   { href: "/admin/users", key: "users", resource: "users", action: "view" },
+  { href: "/admin/verification", key: "verification", resource: "users", action: "verify" },
   { href: "/admin/channels", key: "channels", resource: "channels", action: "view" },
   { href: "/admin/complaints", key: "complaints", resource: "complaints", action: "view" },
   { href: "/admin/ads", key: "ads", resource: "ads", action: "view" },

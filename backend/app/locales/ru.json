@@ -58,6 +58,17 @@
     "user_exists": "Пользователь уже существует",
     "username_change_cooldown": "Username можно менять раз в 30 дней"
   },
+  "verification": {
+    "already_verified": "Профиль уже верифицирован",
+    "request_pending": "Заявка уже на рассмотрении",
+    "individual_fields_required": "Укажите имя, фамилию и дату рождения",
+    "organization_fields_required": "Укажите название организации и ИНН",
+    "reason_too_short": "Опишите причину подробнее (минимум 20 символов)",
+    "link_required": "Укажите хотя бы одну ссылку на внешний ресурс",
+    "request_not_found": "Заявка не найдена",
+    "request_already_reviewed": "Заявка уже рассмотрена",
+    "submitted": "Заявка отправлена на модерацию"
+  },
   "achievements": {
     "profile_complete": "Профиль заполнен",
     "profile_complete_desc": "Заполните имя, био и аватар",

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
-import { api, type Profile, type ProfilePost, type Story } from "@/lib/api";
+import { api, type Profile, type ProfilePost, type Story, type VerificationRequest } from "@/lib/api";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
+import { VerificationForm } from "@/components/profile/VerificationForm";
 import { sanitizeSvg } from "@/lib/sanitize";
 import {
   Alert,
@@ -33,6 +35,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [stories, setStories] = useState<Story[]>([]);
   const [posts, setPosts] = useState<ProfilePost[]>([]);
+  const [verification, setVerification] = useState<VerificationRequest | null>(null);
   const [qrSvg, setQrSvg] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("view");
   const [saving, setSaving] = useState(false);
@@ -51,11 +54,12 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([api.getProfile(), api.getMyStories(), api.getMyPosts()])
-      .then(([p, s, wall]) => {
+    Promise.all([api.getProfile(), api.getMyStories(), api.getMyPosts(), api.getMyVerificationRequest()])
+      .then(([p, s, wall, v]) => {
         setProfile(p);
         setStories(s);
         setPosts(wall);
+        setVerification(v);
       })
       .catch((e) => setMessage({ type: "err", text: e.message }));
   }, [user]);
@@ -248,7 +252,9 @@ export default function ProfilePage() {
                     className="h-24 w-24 text-2xl mx-auto sm:mx-0"
                   />
                   <div className="flex-1 text-center sm:text-left min-w-0">
-                    <h1 className="text-2xl font-semibold truncate">{displayName}</h1>
+                    <h1 className="text-2xl font-semibold truncate">
+                      <DisplayNameWithBadge name={displayName} verified={profile.is_official_verified} />
+                    </h1>
                     <p className="text-muted-foreground mt-1">{statusLine}</p>
                     {profile.bio && <p className="text-sm mt-3 whitespace-pre-wrap">{profile.bio}</p>}
 
@@ -569,6 +575,15 @@ export default function ProfilePage() {
                     )}
                   </CardContent>
                 </Card>
+
+                <VerificationForm
+                  existing={verification}
+                  isVerified={profile.is_official_verified}
+                  onSubmitted={(req) => {
+                    setVerification(req);
+                    setMessage({ type: "ok", text: t("verification.submitted") });
+                  }}
+                />
               </div>
             </div>
           </>

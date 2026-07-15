@@ -67,8 +67,8 @@ export default function AdminUsersPage() {
                 <Button size="sm" onClick={() => adminApi.unbanUser(String(selected.id)).then(() => open(String(selected.id)))}>{t("admin.unban")}</Button>
               )}
               {can("users", "verify") && (
-                <Button size="sm" variant="outline" onClick={() => adminApi.verifyUser(String(selected.id), selected.is_verified !== true).then(() => open(String(selected.id)))}>
-                  {selected.is_verified === true ? t("admin.unverify") : t("admin.verify")}
+                <Button size="sm" variant="outline" onClick={() => adminApi.verifyUser(String(selected.id), selected.is_official_verified !== true).then(() => open(String(selected.id)))}>
+                  {selected.is_official_verified === true ? t("admin.unverify") : t("admin.verify")}
                 </Button>
               )}
             </div>

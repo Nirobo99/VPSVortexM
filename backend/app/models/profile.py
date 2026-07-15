@@ -69,3 +69,45 @@ class UserAchievement(Base):
         UUID(as_uuid=True), ForeignKey("achievements.id", ondelete="CASCADE")
     )
     earned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VerificationApplicantType(str, enum.Enum):
+    INDIVIDUAL = "individual"
+    ORGANIZATION = "organization"
+
+
+class VerificationRequestStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class VerificationRequest(Base):
+    __tablename__ = "verification_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    applicant_type: Mapped[VerificationApplicantType] = mapped_column(Enum(VerificationApplicantType))
+    first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    patronymic: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    birth_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    legal_entity_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    legal_inn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    legal_ogrn: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    legal_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str] = mapped_column(Text)
+    link_vk_group: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    link_vk_page: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    link_instagram: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    link_telegram: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[VerificationRequestStatus] = mapped_column(
+        Enum(VerificationRequestStatus), default=VerificationRequestStatus.PENDING, index=True
+    )
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

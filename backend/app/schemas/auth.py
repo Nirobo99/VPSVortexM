@@ -84,6 +84,7 @@ class UserMe(BaseModel):
     status_text: str | None
     status_emoji: str | None = None
     is_verified: bool
+    is_official_verified: bool = False
     totp_enabled: bool
     activity_points: int
     level: int

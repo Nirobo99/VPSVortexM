@@ -109,6 +109,7 @@ class AdminService:
             "display_name": u.display_name,
             "role": u.role.value,
             "is_verified": u.is_verified,
+            "is_official_verified": u.is_official_verified,
             "is_banned": u.is_banned,
             "is_active": u.is_active,
             "wallet_balance": u.wallet_balance,
@@ -174,12 +175,15 @@ class AdminService:
                 raise ValueError("invalid_role")
             await self.log(admin, AdminAction.ROLE_CHANGE, ip, "user", str(user_id), f"Role → {fields['role']}")
 
-        if "is_verified" in fields and fields["is_verified"] is not None:
-            user.is_verified = fields["is_verified"]
+        if "is_official_verified" in fields and fields["is_official_verified"] is not None:
+            user.is_official_verified = fields["is_official_verified"]
             await self.log(
                 admin, AdminAction.USER_VERIFY, ip, "user", str(user_id),
-                f"Verified={fields['is_verified']}",
+                f"OfficialVerified={fields['is_official_verified']}",
             )
+
+        if "is_verified" in fields and fields["is_verified"] is not None:
+            user.is_verified = fields["is_verified"]
 
         if "wallet_balance" in fields and fields["wallet_balance"] is not None:
             if not admin.is_superadmin:

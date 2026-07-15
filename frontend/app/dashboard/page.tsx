@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
 import { api, type AnnouncementItem } from "@/lib/api";
 import { Alert, Avatar, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 
 export default function DashboardPage() {
@@ -53,7 +54,12 @@ export default function DashboardPage() {
             className="h-14 w-14"
           />
           <div>
-            <CardTitle>{user.display_name || user.username}</CardTitle>
+            <CardTitle>
+              <DisplayNameWithBadge
+                name={user.display_name || user.username}
+                verified={user.is_official_verified}
+              />
+            </CardTitle>
             <CardDescription>
               {formatUserStatus(user.status_emoji, user.status_text, t("profile.noStatus"))}
             </CardDescription>

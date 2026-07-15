@@ -18,6 +18,7 @@ class AdminUserItem(BaseModel):
     display_name: str | None
     role: str
     is_verified: bool
+    is_official_verified: bool = False
     is_banned: bool
     is_active: bool
     wallet_balance: int
@@ -42,6 +43,7 @@ class AdminUserListResponse(BaseModel):
 class AdminUserUpdateRequest(BaseModel):
     role: str | None = None
     is_verified: bool | None = None
+    is_official_verified: bool | None = None
     wallet_balance: int | None = Field(None, ge=0)
 
 
