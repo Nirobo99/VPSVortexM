@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Force production frontend redeploy (fixes old UI / dev turbopack mode)
-# Does NOT stop database/backend — site stays partially up during build.
+# Site stays online during build — old frontend is replaced only after success.
 # Usage: ./scripts/fix-frontend-prod.sh [branch]
 
 set -euo pipefail
@@ -15,10 +15,19 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
+on_fail() {
+  echo ""
+  echo "==> BUILD FAILED — restoring site with last working frontend"
+  "${COMPOSE[@]}" up -d frontend nginx backend 2>/dev/null || true
+  echo "Run: docker compose -f docker-compose.prod.yml logs frontend --tail 50"
+  echo "Or emergency: ./scripts/restore-prod.sh"
+}
+trap on_fail ERR
+
 echo "==> Stop DEV stack only"
 docker compose down --remove-orphans 2>/dev/null || true
 
-echo "==> Sync git to origin/$BRANCH"
+echo "==> Sync git"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
@@ -39,22 +48,24 @@ fi
 export BUILD_ID="$(git rev-parse --short HEAD)"
 echo "==> BUILD_ID=$BUILD_ID"
 
-echo "==> Ensure core services are running"
-"${COMPOSE[@]}" up -d postgres redis minio livekit backend celery-worker celery-beat
-sleep 5
+echo "==> Keep core services running"
+"${COMPOSE[@]}" up -d postgres redis minio livekit backend celery-worker celery-beat nginx frontend
 
-echo "==> Stop and remove frontend only (backend/nginx stay up)"
-"${COMPOSE[@]}" stop frontend 2>/dev/null || true
-"${COMPOSE[@]}" rm -f frontend 2>/dev/null || true
-docker rm -f vortexm-frontend-1 2>/dev/null || true
+echo "==> Build NEW production frontend (old container still serves traffic, ~5-15 min)"
+echo "    If npm fails, site will NOT be taken down."
+BUILD_LOG="/tmp/vortexm-frontend-build-${BUILD_ID}.log"
+if ! "${COMPOSE[@]}" build --no-cache frontend 2>&1 | tee "$BUILD_LOG"; then
+  echo "ERROR: docker build failed. Last 40 lines:"
+  tail -40 "$BUILD_LOG"
+  exit 1
+fi
 
-echo "==> Build production frontend (Dockerfile.prod, ~3-8 min)"
-"${COMPOSE[@]}" build --no-cache frontend
-
-echo "==> Start frontend + reload nginx"
-"${COMPOSE[@]}" up -d frontend
+echo "==> Swap to new frontend image"
+"${COMPOSE[@]}" up -d --force-recreate frontend
 "${COMPOSE[@]}" up -d --force-recreate nginx
-sleep 10
+sleep 12
+
+trap - ERR
 
 CID=$("${COMPOSE[@]}" ps -q frontend)
 docker inspect "$CID" --format 'Cmd: {{json .Config.Cmd}}'
@@ -62,14 +73,14 @@ docker inspect "$CID" --format 'Cmd: {{json .Config.Cmd}}'
 HTML=$(curl -sf --max-time 25 https://vortexm.ru/ 2>/dev/null || curl -sf --max-time 25 http://127.0.0.1/ 2>/dev/null || echo "")
 
 if echo "$HTML" | grep -q turbopack; then
-  echo "FAIL: still DEV mode (turbopack). Run: docker compose down && ./scripts/restore-prod.sh"
+  echo "FAIL: still DEV mode (turbopack)"
   exit 1
 fi
 
 if echo "$HTML" | grep -q landing-frame; then
   echo "SUCCESS: new landing page is live"
 else
-  echo "WARN: landing-frame not found yet — site may still work with old UI"
+  echo "WARN: landing-frame not in HTML — build may have succeeded but check manually"
   "${COMPOSE[@]}" logs frontend --tail 30
 fi
 

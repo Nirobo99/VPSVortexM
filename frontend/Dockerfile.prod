@@ -1,10 +1,23 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+
+# Native deps for sharp / Next.js on Alpine
+RUN apk add --no-cache libc6-compat python3 make g++
+
+COPY package.json package-lock.json ./
+
+# Retries help on slow/unstable networks (common on VPS)
+RUN npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm ci --legacy-peer-deps --no-audit --no-fund \
+ || npm install --legacy-peer-deps --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+RUN apk add --no-cache libc6-compat python3 make g++
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 

@@ -1,72 +1,40 @@
 #!/usr/bin/env bash
-# Emergency: bring production site back online (run on server in /opt/vortexm)
-# Usage: ./scripts/restore-prod.sh
-
+# Emergency: bring site back online immediately (run on server in /opt/vortexm)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-
-if [[ ! -f .env ]]; then
-  echo "Error: .env not found"
-  exit 1
-fi
-
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env)
 
-echo "==> Stop DEV stack only (never use docker compose up without -f prod)"
+echo "==> Emergency restore"
 docker compose down --remove-orphans 2>/dev/null || true
 
-echo "==> Regenerate nginx HTTPS config"
 if [[ -d certbot/conf/live/vortexm.ru ]]; then
   sed "s/YOUR_DOMAIN/vortexm.ru/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
   grep -q '^NGINX_CONFIG=' .env \
     && sed -i 's|^NGINX_CONFIG=.*|NGINX_CONFIG=./nginx/nginx.prod.active.conf|' .env \
     || echo 'NGINX_CONFIG=./nginx/nginx.prod.active.conf' >> .env
-else
-  echo "WARN: no SSL certs — using http-only nginx"
-  export NGINX_CONFIG=./nginx/nginx.http-only.conf
 fi
 
 export BUILD_ID="$(git rev-parse --short HEAD 2>/dev/null || echo restore)"
 
-echo "==> Start infrastructure"
+echo "==> Start all services (use existing images, no rebuild)"
 "${COMPOSE[@]}" up -d postgres redis minio livekit
-echo "Waiting for postgres/redis/minio..."
 sleep 12
-
-echo "==> Start backend workers"
 "${COMPOSE[@]}" up -d backend celery-worker celery-beat
-sleep 8
 
-echo "==> Start frontend (build if image missing)"
-if [[ -z "$("${COMPOSE[@]}" images -q frontend 2>/dev/null || true)" ]]; then
-  echo "Frontend image missing — building (may take several minutes)..."
+# Start frontend from ANY existing image — do not build here
+if docker images --format '{{.Repository}}' | grep -qx 'vortexm-frontend'; then
+  "${COMPOSE[@]}" up -d frontend
+else
+  echo "WARN: no vortexm-frontend image — building minimal frontend (this takes time)..."
   "${COMPOSE[@]}" build frontend
+  "${COMPOSE[@]}" up -d frontend
 fi
-"${COMPOSE[@]}" up -d frontend
 
-echo "==> Start nginx"
 "${COMPOSE[@]}" up -d --force-recreate nginx
 sleep 5
 
-echo "==> Status"
 "${COMPOSE[@]}" ps
-
-echo ""
-echo "==> nginx logs"
-"${COMPOSE[@]}" logs nginx --tail 15
-
-echo ""
-echo "==> HTTP check"
-HTML=$(curl -sf --max-time 15 http://127.0.0.1/ 2>/dev/null || echo "")
-if echo "$HTML" | grep -q turbopack; then
-  echo "WARN: frontend is DEV mode (turbopack) — run ./scripts/fix-frontend-prod.sh for new UI"
-elif echo "$HTML" | grep -q landing-frame; then
-  echo "OK: production frontend with new landing design"
-fi
-curl -sfI --max-time 15 http://127.0.0.1/ | head -5 || echo "FAIL: localhost not responding"
-curl -sfI --max-time 15 https://vortexm.ru/ 2>/dev/null | head -5 || true
-
-echo ""
-echo "Restore finished. If site still down, send: docker compose -f docker-compose.prod.yml ps && docker compose -f docker-compose.prod.yml logs nginx --tail 30"
+curl -sfI --max-time 15 http://127.0.0.1/ | head -3 || echo "localhost check failed"
+echo "Site should be back. For new UI later: ./scripts/fix-frontend-prod.sh"
