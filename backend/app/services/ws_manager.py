@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 
 from fastapi import WebSocket
-from starlette.websockets import WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from app.core.redis_client import get_redis
 
@@ -47,7 +47,8 @@ class WebSocketManager:
             self._listener_started = False
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
-        await websocket.accept()
+        if websocket.application_state == WebSocketState.CONNECTING:
+            await websocket.accept()
         await self._ensure_listener()
         self._connections[user_id].add(websocket)
 

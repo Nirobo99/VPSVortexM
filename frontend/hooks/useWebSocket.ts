@@ -24,7 +24,9 @@ function connect() {
   if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) return;
 
   const token = getAccessToken();
-  const url = token ? `${WS_URL}?token=${encodeURIComponent(token)}` : WS_URL;
+  if (!token) return;
+
+  const url = `${WS_URL}?token=${encodeURIComponent(token)}`;
   globalWs = new WebSocket(url);
   globalWs.onmessage = (e) => {
     try {
@@ -37,7 +39,9 @@ function connect() {
   globalWs.onclose = () => {
     globalWs = null;
     if (reconnectTimer) clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(connect, 3000);
+    if (getAccessToken()) {
+      reconnectTimer = setTimeout(connect, 3000);
+    }
   };
 }
 
@@ -56,6 +60,10 @@ export function useWebSocket(onEvent: Handler) {
 
     const interval = setInterval(() => {
       setConnected(globalWs?.readyState === WebSocket.OPEN);
+      if (!getAccessToken()) return;
+      if (globalWs?.readyState !== WebSocket.OPEN && globalWs?.readyState !== WebSocket.CONNECTING) {
+        connect();
+      }
       if (globalWs?.readyState === WebSocket.OPEN) {
         globalWs.send(JSON.stringify({ type: "ping" }));
       }

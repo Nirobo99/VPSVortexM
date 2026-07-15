@@ -59,12 +59,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = Query(Non
     token = _cookie_token(websocket) or token
     user = await _authenticate_ws(token)
     if not user:
+        await websocket.accept()
         await websocket.close(code=4001)
         return
 
     user_id = str(user.id)
     allowed, _ = await RateLimitService.track_websocket_connection(user_id, settings.websocket_connections_per_user)
     if not allowed:
+        await websocket.accept()
         await websocket.close(code=4429)
         return
 

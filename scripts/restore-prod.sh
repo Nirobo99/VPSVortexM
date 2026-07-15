@@ -59,6 +59,12 @@ echo "==> nginx logs"
 
 echo ""
 echo "==> HTTP check"
+HTML=$(curl -sf --max-time 15 http://127.0.0.1/ 2>/dev/null || echo "")
+if echo "$HTML" | grep -q turbopack; then
+  echo "WARN: frontend is DEV mode (turbopack) — run ./scripts/fix-frontend-prod.sh for new UI"
+elif echo "$HTML" | grep -q landing-frame; then
+  echo "OK: production frontend with new landing design"
+fi
 curl -sfI --max-time 15 http://127.0.0.1/ | head -5 || echo "FAIL: localhost not responding"
 curl -sfI --max-time 15 https://vortexm.ru/ 2>/dev/null | head -5 || true
 
