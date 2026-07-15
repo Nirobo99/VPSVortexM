@@ -1017,6 +1017,12 @@ class ApiClient {
   getActiveAnnouncements() {
     return this.request<AnnouncementItem[]>("/announcements/active");
   }
+
+  getPublicPage(slug: string) {
+    return this.request<{ slug: string; title: string; content_html: string }>(
+      `/pages/${encodeURIComponent(slug)}`
+    );
+  }
 }
 
 export const api = new ApiClient();
