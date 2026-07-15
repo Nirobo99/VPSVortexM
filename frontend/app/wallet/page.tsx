@@ -158,8 +158,8 @@ export default function WalletPage() {
           <p className="text-muted-foreground">
             {t("groups.extend")} · {t("channels.subscriptionPrice")}
           </p>
-          <Link href="/channels" className="text-primary hover:underline block">{t("channels.title")} →</Link>
-          <Link href="/groups" className="text-primary hover:underline block">{t("groups.title")} →</Link>
+          <Link href="/messages?tab=channels" className="text-primary hover:underline block">{t("channels.title")} →</Link>
+          <Link href="/messages?tab=groups" className="text-primary hover:underline block">{t("groups.title")} →</Link>
         </CardContent>
       </Card>
 

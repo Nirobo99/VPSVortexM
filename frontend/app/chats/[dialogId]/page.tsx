@@ -92,7 +92,7 @@ export default function ChatPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user && dialogId) load().catch(() => router.push("/chats"));
+    if (user && dialogId) load().catch(() => router.push("/messages?tab=chats"));
   }, [user, dialogId, load, router]);
 
   useEffect(() => {
@@ -207,7 +207,7 @@ export default function ChatPage() {
   const deleteChat = async () => {
     if (!confirm(t("chats.deleteConfirm"))) return;
     await api.hideDialog(dialogId);
-    router.push("/chats");
+    router.push("/messages?tab=chats");
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -236,7 +236,7 @@ export default function ChatPage() {
     <AppShell>
       <div className="flex flex-col h-[calc(100vh-8rem)] -mx-4 sm:-mx-6">
         <header className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
-          <Link href="/chats" className="text-muted-foreground hover:text-foreground">←</Link>
+          <Link href="/messages?tab=chats" className="text-muted-foreground hover:text-foreground">←</Link>
           {dialog.is_group ? (
             <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">👥</div>
           ) : (

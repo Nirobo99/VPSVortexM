@@ -10,6 +10,7 @@
     "dashboard": "Dashboard",
     "profile": "Profile",
     "settings": "Settings",
+    "messages": "Messages",
     "chats": "Chats",
     "channels": "Channels",
     "wallet": "Wallet",
@@ -139,6 +140,7 @@
     "stage8done": "VortexM is ready to use.",
     "chatsHint": "Direct and secret chats",
     "channelsHint": "Public channels, posts, polls",
+    "messagesHint": "Chats, channels and groups",
     "walletHint": "Top up via YooKassa",
     "adminHint": "Moderation, stats, settings"
   },
@@ -213,7 +215,8 @@
     "members": "Members",
     "membersHint": "usernames comma-separated",
     "membersCount": "members",
-    "extend": "Extend to 1000 members (500 ₽)"
+    "extend": "Extend to 1000 members (500 ₽)",
+    "empty": "No groups yet"
   },
   "wallet": {
     "title": "Wallet",

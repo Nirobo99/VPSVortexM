@@ -11,9 +11,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", key: "dashboard" },
-  { href: "/chats", key: "chats" },
-  { href: "/channels", key: "channels" },
-  { href: "/groups", key: "groups" },
+  { href: "/messages", key: "messages" },
   { href: "/wallet", key: "wallet" },
   { href: "/profile", key: "profile" },
   { href: "/settings", key: "settings" },
@@ -24,6 +22,14 @@ const NAV = [
 const MENU_IDLE_MS = 3500;
 
 function navActive(pathname: string, href: string) {
+  if (href === "/messages") {
+    return (
+      pathname === "/messages" ||
+      pathname.startsWith("/chats") ||
+      pathname.startsWith("/channels") ||
+      pathname.startsWith("/groups")
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

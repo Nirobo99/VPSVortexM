@@ -84,19 +84,11 @@ export default function DashboardPage() {
             </CardHeader>
           </Card>
         </Link>
-        <Link href="/chats">
+        <Link href="/messages">
           <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
             <CardHeader>
-              <CardTitle className="text-lg">{t("nav.chats")}</CardTitle>
-              <CardDescription>{t("dashboard.chatsHint")}</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link href="/channels">
-          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-            <CardHeader>
-              <CardTitle className="text-lg">{t("nav.channels")}</CardTitle>
-              <CardDescription>{t("dashboard.channelsHint")}</CardDescription>
+              <CardTitle className="text-lg">{t("nav.messages")}</CardTitle>
+              <CardDescription>{t("dashboard.messagesHint")}</CardDescription>
             </CardHeader>
           </Card>
         </Link>

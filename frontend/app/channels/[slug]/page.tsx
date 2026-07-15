@@ -23,7 +23,7 @@ export default function ChannelPage() {
   const [broadcastText, setBroadcastText] = useState("");
 
   const load = () => {
-    api.getChannel(slug).then(setChannel).catch(() => router.push("/channels"));
+    api.getChannel(slug).then(setChannel).catch(() => router.push("/messages?tab=channels"));
     api.getChannelPosts(slug).then(setPosts).catch(() => {});
   };
 
@@ -73,7 +73,7 @@ export default function ChannelPage() {
   return (
     <AppShell>
       <div className="mb-6">
-        <Link href="/channels" className="text-sm text-muted-foreground hover:text-foreground">← {t("channels.title")}</Link>
+        <Link href="/messages?tab=channels" className="text-sm text-muted-foreground hover:text-foreground">← {t("channels.title")}</Link>
         <h1 className="text-2xl font-semibold mt-2 flex items-center gap-2">
           {channel.is_verified && <span className="text-primary">✓</span>}
           {channel.title}

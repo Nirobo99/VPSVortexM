@@ -31,7 +31,6 @@
     }
   ],
   "shortcuts": [
-    { "name": "Чаты", "url": "/chats", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Каналы", "url": "/channels", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Сообщения", "url": "/messages", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

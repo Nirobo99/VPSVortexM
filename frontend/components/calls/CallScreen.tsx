@@ -64,7 +64,7 @@ export function CallScreen({ callId }: CallScreenProps) {
       /* ignore */
     }
     roomRef.current?.disconnect();
-    router.push("/chats");
+    router.push("/messages?tab=chats");
   };
 
   useWebSocket((event) => {
@@ -136,7 +136,7 @@ export function CallScreen({ callId }: CallScreenProps) {
       if (mounted) setRoom(lkRoom);
     }
 
-    connect().catch(() => router.push("/chats"));
+    connect().catch(() => router.push("/messages?tab=chats"));
 
     return () => {
       mounted = false;

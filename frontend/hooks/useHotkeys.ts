@@ -39,14 +39,13 @@ export function useHotkeys(onShowHelp: (open?: boolean) => void) {
       if (e.altKey && !e.ctrlKey && !e.metaKey) {
         const routes: Record<string, string> = {
           "1": "/dashboard",
-          "2": "/chats",
-          "3": "/channels",
-          "4": "/wallet",
-          "5": "/profile",
-          "6": "/settings",
+          "2": "/messages",
+          "3": "/wallet",
+          "4": "/profile",
+          "5": "/settings",
         };
         if (user.role === "admin" || user.role === "superadmin") {
-          routes["7"] = "/admin/login";
+          routes["6"] = "/admin/login";
         }
         const path = routes[e.key];
         if (path) {
