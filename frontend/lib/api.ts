@@ -63,6 +63,14 @@ export interface Story {
   created_at: string;
 }
 
+export interface ProfilePost {
+  id: string;
+  media_url: string | null;
+  media_type: string;
+  text: string | null;
+  created_at: string;
+}
+
 export interface BlockedUser {
   id: string;
   username: string;
@@ -569,12 +577,32 @@ class ApiClient {
     return this.request<{ message: string }>(`/users/me/stories/${storyId}`, { method: "DELETE" }, true);
   }
 
+  getMyPosts() {
+    return this.request<ProfilePost[]>("/users/me/posts", {}, true);
+  }
+
+  async createProfilePost(text: string | null, file?: File) {
+    const form = new FormData();
+    if (text) form.append("text", text);
+    if (file) form.append("file", file);
+    const res = await this.requestRaw("/users/me/posts", { method: "POST", body: form });
+    return res.json() as Promise<ProfilePost>;
+  }
+
+  deleteProfilePost(postId: string) {
+    return this.request<{ message: string }>(`/users/me/posts/${postId}`, { method: "DELETE" }, true);
+  }
+
   getPublicProfile(username: string) {
     return this.request<PublicProfile>(`/users/${encodeURIComponent(username)}`, {}, true);
   }
 
   getUserStories(username: string) {
     return this.request<Story[]>(`/users/${encodeURIComponent(username)}/stories`, {}, true);
+  }
+
+  getUserPosts(username: string) {
+    return this.request<ProfilePost[]>(`/users/${encodeURIComponent(username)}/posts`, {}, true);
   }
 
   getFolders() {

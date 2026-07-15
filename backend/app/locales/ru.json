@@ -52,6 +52,9 @@
     "invalid_media_type": "Недопустимый тип медиа",
     "story_not_found": "Сторис не найдена",
     "story_deleted": "Сторис удалена",
+    "empty_post": "Добавьте текст или фото",
+    "post_not_found": "Пост не найден",
+    "post_deleted": "Пост удалён",
     "user_exists": "Пользователь уже существует",
     "username_change_cooldown": "Username можно менять раз в 30 дней"
   },

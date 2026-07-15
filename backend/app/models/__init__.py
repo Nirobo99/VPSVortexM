@@ -1,7 +1,7 @@
 from app.models.user import User
 from app.models.auth_tokens import EmailVerificationToken, PasswordResetToken, RefreshToken
 from app.models.social import BlockedUser, UserIPLog
-from app.models.profile import Achievement, Story, UserAchievement
+from app.models.profile import Achievement, ProfilePost, Story, UserAchievement
 from app.models.messaging import ChatFolder, Dialog, DialogParticipant, Message, MessageReaction
 from app.models.security import SecurityLog
 from app.models.calls import Call, CallParticipant, CallRecording
@@ -40,6 +40,7 @@ __all__ = [
     "BlockedUser",
     "UserIPLog",
     "Story",
+    "ProfilePost",
     "Achievement",
     "UserAchievement",
     "ChatFolder",

@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
 from app.core.i18n import t
 from app.core.security import hash_password
-from app.models.profile import Story, StoryMediaType
+from app.models.profile import ProfilePost, ProfilePostMediaType, Story, StoryMediaType
 from app.models.social import BlockedUser
 from app.models.user import ProfileVisibility, ThemeMode, User, UserRole
 from app.services.gamification_service import GamificationService
@@ -224,6 +224,51 @@ class ProfileService:
         if story.media_url:
             StorageService.delete_by_url(story.media_url)
         await self.db.delete(story)
+        await self.db.commit()
+
+    async def create_profile_post(
+        self,
+        user: User,
+        text: str | None,
+        content: bytes | None,
+        content_type: str | None,
+    ) -> ProfilePost:
+        media_url = None
+        media_type = ProfilePostMediaType.TEXT
+        if content and content_type:
+            media_url = StorageService.upload_profile_post_media(user.id, content, content_type)
+            media_type = ProfilePostMediaType.IMAGE
+        if not (text and text.strip()) and not media_url:
+            raise ValueError("empty_post")
+        post = ProfilePost(
+            user_id=user.id,
+            media_url=media_url,
+            media_type=media_type,
+            text=text.strip() if text else None,
+        )
+        self.db.add(post)
+        await self.db.flush()
+        await self.gamification.add_points(user, "story_post")
+        return post
+
+    async def get_user_posts(self, user_id: uuid.UUID) -> list[ProfilePost]:
+        result = await self.db.execute(
+            select(ProfilePost)
+            .where(ProfilePost.user_id == user_id)
+            .order_by(ProfilePost.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def delete_profile_post(self, user: User, post_id: uuid.UUID) -> None:
+        result = await self.db.execute(
+            select(ProfilePost).where(ProfilePost.id == post_id, ProfilePost.user_id == user.id)
+        )
+        post = result.scalar_one_or_none()
+        if not post:
+            raise ValueError("post_not_found")
+        if post.media_url:
+            StorageService.delete_by_url(post.media_url)
+        await self.db.delete(post)
         await self.db.commit()
 
     async def _is_blocked(self, user_a: uuid.UUID, user_b: uuid.UUID) -> bool:

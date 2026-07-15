@@ -51,6 +51,14 @@ class StoryCreateResponse(BaseModel):
     created_at: str
 
 
+class ProfilePostResponse(BaseModel):
+    id: str
+    media_url: str | None
+    media_type: str
+    text: str | None
+    created_at: str
+
+
 class ProfileResponse(BaseModel):
     id: str
     username: str
@@ -86,7 +94,7 @@ class PublicProfileResponse(BaseModel):
     status_text: str | None
     status_emoji: str | None
     is_verified: bool
-    level: int
+    is_admin: bool = False
     is_anonymous: bool
     profile_visibility: str
 

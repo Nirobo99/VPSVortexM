@@ -162,6 +162,14 @@ class StorageService:
         return url, media_type
 
     @staticmethod
+    def upload_profile_post_media(user_id: uuid.UUID, content: bytes, content_type: str) -> str:
+        if content_type not in ALLOWED_IMAGE_TYPES:
+            raise ValueError("invalid_image_type")
+        ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+        key = f"profile_posts/{user_id}/{uuid.uuid4()}.{ext}"
+        return StorageService.upload_file(content, key, content_type)
+
+    @staticmethod
     def upload_message_media(
         dialog_id: uuid.UUID, user_id: uuid.UUID, content: bytes, content_type: str, message_type: str
     ) -> tuple[str, str]:

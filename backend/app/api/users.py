@@ -21,6 +21,7 @@ from app.schemas.profile import (
     StoryCreateResponse,
     ThemeUpdateRequest,
     UsernameChangeRequest,
+    ProfilePostResponse,
 )
 from app.services.profile_service import ProfileService
 from app.services.storage_service import StorageService
@@ -253,6 +254,78 @@ async def delete_story(
     except ValueError:
         raise HTTPException(status_code=404, detail=t("profile.story_not_found", lang))
     return MessageResponse(message=t("profile.story_deleted", lang))
+
+
+def _post_response(post) -> ProfilePostResponse:
+    return ProfilePostResponse(
+        id=str(post.id),
+        media_url=StorageService.generate_presigned_url(post.media_url),
+        media_type=post.media_type.value.lower(),
+        text=post.text,
+        created_at=post.created_at.isoformat(),
+    )
+
+
+@router.get("/me/posts", response_model=list[ProfilePostResponse])
+async def my_posts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    service = ProfileService(db)
+    posts = await service.get_user_posts(user.id)
+    return [_post_response(p) for p in posts]
+
+
+@router.post("/me/posts", response_model=ProfilePostResponse, status_code=status.HTTP_201_CREATED)
+async def create_profile_post(
+    request: Request,
+    text: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    content = None
+    content_type = None
+    if file and file.filename:
+        content = await file.read()
+        content_type = file.content_type
+    try:
+        post = await service.create_profile_post(user, text, content, content_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"profile.{e}", lang))
+    return _post_response(post)
+
+
+@router.delete("/me/posts/{post_id}", response_model=MessageResponse)
+async def delete_profile_post(
+    post_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    try:
+        await service.delete_profile_post(user, uuid.UUID(post_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail=t("profile.post_not_found", lang))
+    return MessageResponse(message=t("profile.post_deleted", lang))
+
+
+@router.get("/{username}/posts", response_model=list[ProfilePostResponse])
+async def user_posts(
+    username: str,
+    request: Request,
+    viewer: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ProfileService(db)
+    try:
+        profile = await service.get_public_profile(username, viewer)
+        posts = await service.get_user_posts(uuid.UUID(profile["id"]))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=t(f"profile.{e}", lang))
+    return [_post_response(p) for p in posts]
 
 
 @router.get("/{username}/stories", response_model=list[StoryCreateResponse])
