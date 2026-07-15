@@ -1,6 +1,7 @@
 import io
 import uuid
 from functools import lru_cache
+from urllib.parse import urlparse
 
 import boto3
 from botocore.client import Config
@@ -36,34 +37,59 @@ def _get_client():
 class StorageService:
     @staticmethod
     def public_url_for_key(key: str) -> str:
-        return f"{settings.s3_public_url}/{key}"
+        base = settings.s3_public_url.rstrip("/")
+        clean_key = key.lstrip("/")
+        return f"{base}/{clean_key}"
 
     @staticmethod
     def key_from_url(url_or_key: str | None) -> str | None:
         if not url_or_key:
             return None
-        prefix = f"{settings.s3_public_url}/"
-        if url_or_key.startswith(prefix):
-            return url_or_key[len(prefix):]
-        if url_or_key.startswith("/media/"):
-            return url_or_key[len("/media/"):]
-        if url_or_key.startswith("http") and "/vortexm/" in url_or_key:
-            return url_or_key.split("/vortexm/", 1)[-1]
-        return url_or_key
+
+        value = url_or_key.strip()
+        if not value.startswith("http") and not value.startswith("/"):
+            return value
+
+        public_base = settings.s3_public_url.rstrip("/")
+        if value.startswith(f"{public_base}/"):
+            return value[len(public_base) + 1 :]
+
+        if value.startswith("/media/"):
+            return value[len("/media/") :]
+
+        bucket_marker = f"/{settings.s3_bucket}/"
+        if bucket_marker in value:
+            return value.split(bucket_marker, 1)[-1]
+
+        parsed = urlparse(value)
+        path = parsed.path.lstrip("/")
+        if path.startswith(f"{settings.s3_bucket}/"):
+            return path[len(settings.s3_bucket) + 1 :]
+
+        return path or None
 
     @staticmethod
     def generate_presigned_url(url_or_key: str | None, expires_in: int | None = None) -> str | None:
         key = StorageService.key_from_url(url_or_key)
         if not key:
             return None
+
+        # Public media is served via nginx /media/ → MinIO
         if not settings.s3_private_bucket:
             return StorageService.public_url_for_key(key)
+
         client = _get_client()
-        return client.generate_presigned_url(
+        url = client.generate_presigned_url(
             "get_object",
             Params={"Bucket": settings.s3_bucket, "Key": key},
             ExpiresIn=expires_in or settings.storage_presign_ttl_seconds,
         )
+        # Rewrite internal MinIO host to public URL when possible
+        public_base = settings.s3_public_url.rstrip("/")
+        internal_base = settings.s3_endpoint.rstrip("/")
+        if public_base and internal_base and url.startswith(internal_base):
+            return url.replace(internal_base, public_base, 1)
+        return url
 
     @staticmethod
     def ensure_bucket() -> None:
@@ -74,16 +100,42 @@ class StorageService:
             client.create_bucket(Bucket=settings.s3_bucket)
 
     @staticmethod
+    def ensure_public_read() -> None:
+        """Allow anonymous GET for public bucket (avatars, media via nginx /media/)."""
+        if settings.s3_private_bucket:
+            return
+        client = _get_client()
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{settings.s3_bucket}/*"],
+                }
+            ],
+        }
+        import json
+
+        try:
+            client.put_bucket_policy(Bucket=settings.s3_bucket, Policy=json.dumps(policy))
+        except ClientError:
+            pass
+
+    @staticmethod
     def upload_file(content: bytes, key: str, content_type: str) -> str:
         if len(content) > MAX_FILE_SIZE:
             raise ValueError("file_too_large")
         client = _get_client()
         StorageService.ensure_bucket()
+        StorageService.ensure_public_read()
         client.put_object(
             Bucket=settings.s3_bucket,
             Key=key,
             Body=content,
             ContentType=content_type,
+            CacheControl="public, max-age=86400",
         )
         return StorageService.public_url_for_key(key)
 

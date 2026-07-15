@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     recaptcha_min_score: float = 0.5
 
     storage_presign_ttl_seconds: int = 900
-    s3_private_bucket: bool = True
+    s3_private_bucket: bool = False
 
     smtp_host: str = "smtp.mail.ru"
     smtp_port: int = 465

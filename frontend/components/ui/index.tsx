@@ -133,11 +133,23 @@ export function Avatar({
   className?: string;
   online?: boolean;
 }) {
+  const [imgFailed, setImgFailed] = React.useState(false);
   const initials = name.slice(0, 2).toUpperCase();
+  const showImage = Boolean(src) && !imgFailed;
+
+  React.useEffect(() => {
+    setImgFailed(false);
+  }, [src]);
+
   return (
     <div className={cn("relative inline-flex shrink-0", className)}>
-      {src ? (
-        <img src={src} alt={name} className={cn("rounded-full object-cover bg-muted w-full h-full")} />
+      {showImage ? (
+        <img
+          src={src!}
+          alt={name}
+          className={cn("rounded-full object-cover bg-muted w-full h-full")}
+          onError={() => setImgFailed(true)}
+        />
       ) : (
         <div
           className={cn(
