@@ -146,6 +146,8 @@
     "post_not_found": "Пост не найден",
     "cannot_modify_owner": "Нельзя изменить роль владельца",
     "comment_added": "Комментарий добавлен",
+    "post_deleted": "Пост удалён",
+    "empty_comment": "Введите текст комментария",
     "post_pinned": "Пост закреплён",
     "member_updated": "Права участника обновлены",
     "verified": "Статус верификации обновлён",
@@ -189,12 +191,14 @@
   },
   "wallet": {
     "invalid_amount": "Сумма должна быть от 10 до 100 000 ₽",
+    "amount_must_be_even": "Сумма обмена должна быть чётной (курс 2 ₽ = 1 V.Money)",
     "payment_not_found": "Платёж не найден",
     "topup_success": "Кошелёк пополнен",
     "topup_pending": "Ожидание оплаты",
     "topup_canceled": "Платёж отменён",
     "invalid_webhook": "Недействительный webhook платежа",
     "insufficient_balance": "Недостаточно средств на балансе",
+    "insufficient_vmoney": "Недостаточно V.Money — обменяйте рубли в разделе «Обмен валюты»",
     "user_not_found": "Пользователь не найден",
     "cannot_transfer_self": "Нельзя перевести самому себе"
   },

@@ -282,9 +282,10 @@ class ConversationService:
         dialog = result.scalar_one()
         if dialog.is_paid_extended:
             raise ValueError("already_extended")
-        if user.wallet_balance < GROUP_EXTENSION_PRICE:
+        vmoney = int(getattr(user, "vmoney_balance", 0) or 0)
+        if vmoney < GROUP_EXTENSION_PRICE:
             raise ValueError("insufficient_balance")
-        user.wallet_balance -= GROUP_EXTENSION_PRICE
+        user.vmoney_balance = vmoney - GROUP_EXTENSION_PRICE
         dialog.member_limit = EXTENDED_MEMBER_LIMIT
         dialog.is_paid_extended = True
         await self.db.commit()

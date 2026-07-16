@@ -9,20 +9,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { api, type WalletHistory } from "@/lib/api";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from "@/components/ui";
 
-const PRESETS = [100, 500, 1000, 5000];
 const HISTORY_LIMIT = 5;
+const SUPPORT_PROFILE_PATH = "/users/" + encodeURIComponent("VortexM Поддержка");
+const CONVERT_PRESETS = [200, 500, 1000, 2000];
 
-type Panel = "topup" | "transfer" | null;
+type Panel = "topup" | "transfer" | "convert" | null;
 
 export default function WalletPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const { user, loading, reload } = useAuth();
   const [history, setHistory] = useState<WalletHistory | null>(null);
-  const [amount, setAmount] = useState(500);
   const [transferUser, setTransferUser] = useState("");
   const [transferAmount, setTransferAmount] = useState(100);
-  const [topingUp, setTopingUp] = useState(false);
+  const [convertAmount, setConvertAmount] = useState(200);
+  const [converting, setConverting] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [prices, setPrices] = useState({ invisible_monthly: 199, group_extension: 500 });
 
@@ -39,28 +40,6 @@ export default function WalletPage() {
     }
   }, [user]);
 
-  const topUp = async () => {
-    setTopingUp(true);
-    try {
-      const res = await api.topUpWallet(amount);
-      if (res.confirmation_url && res.status === "pending") {
-        window.location.href = res.confirmation_url;
-        return;
-      }
-      if (res.confirmation_url && res.status === "succeeded") {
-        router.push(`/wallet/success?payment_id=${res.payment_id}`);
-        return;
-      }
-      await reload();
-      load();
-      setPanel(null);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : t("auth.error"));
-    } finally {
-      setTopingUp(false);
-    }
-  };
-
   const transfer = async () => {
     try {
       await api.transferWallet(transferUser.trim(), transferAmount);
@@ -70,6 +49,22 @@ export default function WalletPage() {
       setPanel(null);
     } catch (e) {
       alert(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const convert = async () => {
+    const amount = Math.floor(convertAmount / 2) * 2;
+    if (amount < 2) return;
+    setConverting(true);
+    try {
+      await api.convertToVmoney(amount);
+      await reload();
+      load();
+      setPanel(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -92,14 +87,16 @@ export default function WalletPage() {
   }
 
   const balance = history?.balance ?? user.wallet_balance;
+  const vmoney = history?.vmoney_balance ?? user.vmoney_balance ?? 0;
   const transactions = (history?.transactions ?? []).slice(0, HISTORY_LIMIT);
+  const receivedVmoney = Math.floor(convertAmount / 2);
 
   const paidFeatures = [
     {
       id: "invisible",
       title: t("wallet.invisibleTitle"),
       description: t("wallet.invisibleHint"),
-      price: `${prices.invisible_monthly} ₽/${t("wallet.perMonth")}`,
+      price: `${prices.invisible_monthly} VM/${t("wallet.perMonth")}`,
       action: buyInvisible,
       actionLabel: t("wallet.buy"),
     },
@@ -107,7 +104,7 @@ export default function WalletPage() {
       id: "groups",
       title: t("wallet.groupExtensionTitle"),
       description: t("wallet.groupExtensionHint"),
-      price: `${prices.group_extension} ₽`,
+      price: `${prices.group_extension} VM`,
       href: "/messages?tab=groups",
       actionLabel: t("wallet.buy"),
     },
@@ -115,7 +112,7 @@ export default function WalletPage() {
       id: "channels",
       title: t("wallet.channelSubsTitle"),
       description: t("wallet.channelSubsHint"),
-      price: t("wallet.fromBalance"),
+      price: t("wallet.fromVmoney"),
       href: "/messages?tab=channels",
       actionLabel: t("wallet.buy"),
     },
@@ -137,12 +134,22 @@ export default function WalletPage() {
             <CardTitle className="text-lg">{t("wallet.balance")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-4xl font-bold text-primary">{balance.toLocaleString()} ₽</p>
-            <p className="text-sm text-muted-foreground mt-2">{t("wallet.balanceHint")}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">{t("wallet.rubles")}</p>
+                <p className="text-4xl font-bold text-primary">{balance.toLocaleString()} ₽</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t("wallet.vmoney")}</p>
+                <p className="text-4xl font-bold">{vmoney.toLocaleString()} VM</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mt-3">{t("wallet.balanceHint")}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("wallet.rateHint")}</p>
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Button
             size="lg"
             variant={panel === "topup" ? "default" : "outline"}
@@ -152,8 +159,16 @@ export default function WalletPage() {
           </Button>
           <Button
             size="lg"
+            variant={panel === "convert" ? "default" : "outline"}
+            onClick={() => setPanel(panel === "convert" ? null : "convert")}
+          >
+            {t("wallet.convert")}
+          </Button>
+          <Button
+            size="lg"
             variant={panel === "transfer" ? "default" : "outline"}
             onClick={() => setPanel(panel === "transfer" ? null : "transfer")}
+            className="col-span-2 sm:col-span-1"
           >
             {t("wallet.transferBtn")}
           </Button>
@@ -165,32 +180,55 @@ export default function WalletPage() {
               <CardTitle className="text-lg">{t("wallet.topUp")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="text-sm whitespace-pre-line leading-relaxed rounded-md border border-border bg-muted/30 p-4">
+                {t("wallet.manualTopupNotice")}
+              </div>
+              <Button asChild className="w-full sm:w-auto">
+                <Link href={SUPPORT_PROFILE_PATH}>{t("wallet.sendConfirmation")}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {panel === "convert" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{t("wallet.convertTitle")}</CardTitle>
+              <CardDescription>{t("wallet.convertHint")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                {PRESETS.map((p) => (
+                {CONVERT_PRESETS.map((p) => (
                   <Button
                     key={p}
-                    variant={amount === p ? "default" : "outline"}
+                    variant={convertAmount === p ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setAmount(p)}
+                    onClick={() => setConvertAmount(p)}
                   >
                     {p} ₽
                   </Button>
                 ))}
               </div>
               <div>
-                <Label>{t("wallet.amount")}</Label>
+                <Label>{t("wallet.convertAmount")}</Label>
                 <Input
                   type="number"
-                  min={10}
-                  max={100000}
-                  value={amount}
-                  onChange={(e) => setAmount(Number(e.target.value))}
+                  min={2}
+                  step={2}
+                  max={balance}
+                  value={convertAmount}
+                  onChange={(e) => setConvertAmount(Number(e.target.value))}
                 />
               </div>
-              <Button onClick={topUp} disabled={topingUp || amount < 10}>
-                {t("wallet.topUpConfirm")}
+              <p className="text-sm text-muted-foreground">
+                {t("wallet.convertPreview", { rubles: Math.floor(convertAmount / 2) * 2, vmoney: receivedVmoney })}
+              </p>
+              <Button
+                onClick={convert}
+                disabled={converting || convertAmount < 2 || convertAmount > balance}
+              >
+                {t("wallet.convertConfirm")}
               </Button>
-              <p className="text-xs text-muted-foreground">{t("wallet.yookassaHint")}</p>
             </CardContent>
           </Card>
         )}
@@ -199,6 +237,7 @@ export default function WalletPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">{t("wallet.transfer")}</CardTitle>
+              <CardDescription>{t("wallet.transferRublesHint")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div>

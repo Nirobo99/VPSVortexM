@@ -8,6 +8,8 @@ from app.core.deps import get_current_user
 from app.core.i18n import t
 from app.models.user import User
 from app.schemas.payments import (
+    ConvertToVmoneyRequest,
+    ConvertToVmoneyResponse,
     InvisiblePurchaseResponse,
     PaymentResponse,
     TopUpRequest,
@@ -29,8 +31,8 @@ def _lang(request: Request) -> str:
 @router.get("/balance", response_model=WalletBalanceResponse)
 async def get_balance(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     service = PaymentService(db)
-    balance = await service.get_balance(user)
-    return WalletBalanceResponse(balance=balance)
+    data = await service.get_balance(user)
+    return WalletBalanceResponse(**data)
 
 
 @router.get("/history", response_model=WalletHistoryResponse)
@@ -38,6 +40,22 @@ async def get_history(user: User = Depends(get_current_user), db: AsyncSession =
     service = PaymentService(db)
     data = await service.get_history(user)
     return WalletHistoryResponse(**data)
+
+
+@router.post("/convert", response_model=ConvertToVmoneyResponse)
+async def convert_to_vmoney(
+    body: ConvertToVmoneyRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = PaymentService(db)
+    try:
+        data = await service.convert_to_vmoney(user, body.amount)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"wallet.{e}", lang))
+    return ConvertToVmoneyResponse(**data)
 
 
 @router.post("/topup", response_model=TopUpResponse, status_code=status.HTTP_201_CREATED)

@@ -58,6 +58,7 @@ class User(Base):
     activity_points: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[int] = mapped_column(Integer, default=1)
     wallet_balance: Mapped[int] = mapped_column(Integer, default=0)
+    vmoney_balance: Mapped[int] = mapped_column(Integer, default=0)
     referral_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
     referred_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     locale: Mapped[str] = mapped_column(String(5), default="ru")

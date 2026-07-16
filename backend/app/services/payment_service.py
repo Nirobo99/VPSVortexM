@@ -14,11 +14,19 @@ settings = get_settings()
 MIN_TOPUP = 10
 MAX_TOPUP = 100_000
 INVISIBLE_MONTHLY_PRICE = 199
+# 2 ₽ = 1 V.Money
+VMONEY_RUB_PER_UNIT = 2
+MIN_CONVERT_RUB = 2
+MAX_CONVERT_RUB = 100_000
 
 
 class PaymentService:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _vmoney(user: User) -> int:
+        return int(getattr(user, "vmoney_balance", 0) or 0)
 
     def _payment_dict(self, p: WalletPayment) -> dict:
         return {
@@ -40,9 +48,12 @@ class PaymentService:
             "created_at": t.created_at.isoformat() if t.created_at else "",
         }
 
-    async def get_balance(self, user: User) -> int:
+    async def get_balance(self, user: User) -> dict:
         await self.db.refresh(user)
-        return user.wallet_balance
+        return {
+            "balance": user.wallet_balance,
+            "vmoney_balance": self._vmoney(user),
+        }
 
     async def get_history(self, user: User, limit: int = 50) -> dict:
         await self.db.refresh(user)
@@ -60,8 +71,40 @@ class PaymentService:
         )
         return {
             "balance": user.wallet_balance,
+            "vmoney_balance": self._vmoney(user),
             "payments": [self._payment_dict(p) for p in payments_result.scalars().all()],
             "transactions": [self._transaction_dict(t) for t in tx_result.scalars().all()],
+        }
+
+    async def convert_to_vmoney(self, user: User, rubles: int) -> dict:
+        """Exchange rubles → V.Money at 2 ₽ = 1 VM. Amount must be even and ≥ 2."""
+        if rubles < MIN_CONVERT_RUB or rubles > MAX_CONVERT_RUB:
+            raise ValueError("invalid_amount")
+        if rubles % VMONEY_RUB_PER_UNIT != 0:
+            raise ValueError("amount_must_be_even")
+        await self.db.refresh(user)
+        if user.wallet_balance < rubles:
+            raise ValueError("insufficient_balance")
+        vmoney = rubles // VMONEY_RUB_PER_UNIT
+        user.wallet_balance -= rubles
+        user.vmoney_balance = self._vmoney(user) + vmoney
+        self.db.add(
+            WalletTransaction(
+                user_id=user.id,
+                amount=-rubles,
+                balance_after=user.wallet_balance,
+                transaction_type=TransactionType.SPEND,
+                description=f"Обмен на V.Money (+{vmoney} VM)",
+            )
+        )
+        await self.db.commit()
+        await self.db.refresh(user)
+        return {
+            "balance": user.wallet_balance,
+            "vmoney_balance": self._vmoney(user),
+            "converted_rubles": rubles,
+            "received_vmoney": vmoney,
+            "rate": VMONEY_RUB_PER_UNIT,
         }
 
     async def get_payment(self, user: User, payment_id: uuid.UUID) -> WalletPayment:
@@ -236,9 +279,10 @@ class PaymentService:
 
     async def purchase_invisible(self, user: User, fake_last_seen: datetime | None = None) -> dict:
         price = INVISIBLE_MONTHLY_PRICE
-        if user.wallet_balance < price:
-            raise ValueError("insufficient_balance")
-        user.wallet_balance -= price
+        await self.db.refresh(user)
+        if self._vmoney(user) < price:
+            raise ValueError("insufficient_vmoney")
+        user.vmoney_balance = self._vmoney(user) - price
         now = datetime.now(timezone.utc)
         base = user.invisible_until if user.invisible_until and user.invisible_until > now else now
         user.invisible_until = base + timedelta(days=30)
@@ -249,12 +293,13 @@ class PaymentService:
             amount=-price,
             balance_after=user.wallet_balance,
             transaction_type=TransactionType.SPEND,
-            description="Подписка «Невидимка» (30 дней)",
+            description="Подписка «Невидимка» (30 дней, V.Money)",
         )
         self.db.add(txn)
         await self.db.commit()
         return {
             "balance": user.wallet_balance,
+            "vmoney_balance": self._vmoney(user),
             "invisible_until": user.invisible_until.isoformat(),
             "invisible_fake_last_seen": user.invisible_fake_last_seen.isoformat() if user.invisible_fake_last_seen else None,
         }

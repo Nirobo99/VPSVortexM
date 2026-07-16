@@ -225,6 +225,20 @@ async def lifespan(app: FastAPI):
         DO $$
         BEGIN
           IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'users' AND column_name = 'vmoney_balance'
+          ) THEN
+            ALTER TABLE users
+              ADD COLUMN vmoney_balance integer NOT NULL DEFAULT 0;
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
             SELECT 1 FROM information_schema.columns
             WHERE table_name = 'channel_posts'
               AND column_name = 'post_type'

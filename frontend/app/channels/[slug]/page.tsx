@@ -11,6 +11,7 @@ import {
   type ChannelInfo,
   type ChannelMember,
   type ChannelPost,
+  type ChannelPostComment,
   type ChannelVerificationRequest,
 } from "@/lib/api";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
@@ -48,6 +49,10 @@ export default function ChannelPage() {
   const [saving, setSaving] = useState(false);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, ChannelPostComment[]>>({});
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentLoading, setCommentLoading] = useState<Record<string, boolean>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
@@ -182,6 +187,58 @@ export default function ChannelPage() {
       setPosts((prev) => prev.map((p) => (p.id === postId ? updated : p)));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const deletePost = async (postId: string) => {
+    setMessage(null);
+    try {
+      await api.deleteChannelPost(postId);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setCommentsByPost((prev) => {
+        const next = { ...prev };
+        delete next[postId];
+        return next;
+      });
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const toggleComments = async (postId: string) => {
+    const nextOpen = !openComments[postId];
+    setOpenComments((prev) => ({ ...prev, [postId]: nextOpen }));
+    if (!nextOpen || commentsByPost[postId]) return;
+    setCommentLoading((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const list = await api.getChannelPostComments(postId);
+      setCommentsByPost((prev) => ({ ...prev, [postId]: list }));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setCommentLoading((prev) => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const sendComment = async (postId: string) => {
+    const text = (commentDrafts[postId] || "").trim();
+    if (!text) return;
+    setCommentLoading((prev) => ({ ...prev, [postId]: true }));
+    try {
+      const created = await api.addChannelComment(postId, text);
+      setCommentsByPost((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), created],
+      }));
+      setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p))
+      );
+      setOpenComments((prev) => ({ ...prev, [postId]: true }));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setCommentLoading((prev) => ({ ...prev, [postId]: false }));
     }
   };
 
@@ -587,6 +644,18 @@ export default function ChannelPage() {
                   </Link>
                   {post.is_announcement && <span className="text-primary">📢</span>}
                   {post.is_pinned && <span>📌</span>}
+                  <span className="ml-auto" />
+                  {((canManage || (user && post.author_id === user.id)) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      className="h-7 px-2 text-destructive"
+                      onClick={() => deletePost(post.id)}
+                    >
+                      {t("channels.deletePost")}
+                    </Button>
+                  ))}
                 </div>
                 {post.content_locked ? (
                   <div className="flex items-center gap-2">
@@ -647,6 +716,66 @@ export default function ChannelPage() {
                       </p>
                     )}
                   </>
+                )}
+
+                {channel.is_member && (
+                  <div className="mt-3 border-t border-border pt-3 space-y-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      onClick={() => toggleComments(post.id)}
+                    >
+                      {openComments[post.id] ? t("channels.hideComments") : t("channels.showComments")}
+                      {typeof post.comments_count === "number" ? ` (${post.comments_count})` : ""}
+                    </Button>
+
+                    {openComments[post.id] && (
+                      <div className="space-y-2">
+                        {commentLoading[post.id] && !commentsByPost[post.id] ? (
+                          <p className="text-xs text-muted-foreground">...</p>
+                        ) : (commentsByPost[post.id] || []).length === 0 ? (
+                          <p className="text-xs text-muted-foreground">{t("channels.noComments")}</p>
+                        ) : (
+                          (commentsByPost[post.id] || []).map((c) => (
+                            <div key={c.id} className="text-sm rounded-md bg-muted/40 px-2 py-1.5">
+                              <Link
+                                href={`/users/${c.author_username}`}
+                                className="text-xs text-muted-foreground hover:underline"
+                              >
+                                @{c.author_username}
+                              </Link>
+                              <p className="mt-0.5 whitespace-pre-wrap break-words">{c.content}</p>
+                            </div>
+                          ))
+                        )}
+                        <div className="flex gap-2">
+                          <Input
+                            value={commentDrafts[post.id] || ""}
+                            onChange={(e) =>
+                              setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))
+                            }
+                            placeholder={t("channels.commentPlaceholder")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                sendComment(post.id);
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={commentLoading[post.id] || !(commentDrafts[post.id] || "").trim()}
+                            onClick={() => sendComment(post.id)}
+                          >
+                            {t("channels.sendComment")}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

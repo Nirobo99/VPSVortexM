@@ -89,6 +89,7 @@ class UserMe(BaseModel):
     activity_points: int
     level: int
     wallet_balance: int
+    vmoney_balance: int = 0
     locale: str
     role: str
     has_admin_panel: bool = False

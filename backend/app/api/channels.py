@@ -294,7 +294,25 @@ async def vote_poll(
     return PostResponse(**data)
 
 
-@router.post("/posts/{post_id}/comments", response_model=MessageResponse)
+@router.get("/posts/{post_id}/comments", response_model=list[dict])
+async def list_comments(
+    post_id: str,
+    request: Request,
+    user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        return await service.list_comments(user, uuid.UUID(post_id))
+    except ValueError as e:
+        raise HTTPException(
+            status_code=403 if e.args[0] == "channel_private" else 404,
+            detail=t(f"channels.{e}", lang),
+        )
+
+
+@router.post("/posts/{post_id}/comments", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def add_comment(
     post_id: str,
     body: CommentCreateRequest,
@@ -305,10 +323,25 @@ async def add_comment(
     lang = _lang(request)
     service = ChannelService(db)
     try:
-        await service.add_comment(user, uuid.UUID(post_id), body.content)
+        return await service.add_comment(user, uuid.UUID(post_id), body.content)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
-    return MessageResponse(message=t("channels.comment_added", lang))
+
+
+@router.delete("/posts/{post_id}", response_model=MessageResponse)
+async def delete_post(
+    post_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        await service.delete_post(user, uuid.UUID(post_id))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    return MessageResponse(message=t("channels.post_deleted", lang))
 
 
 @router.post("/posts/{post_id}/pin", response_model=MessageResponse)

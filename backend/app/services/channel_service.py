@@ -270,12 +270,13 @@ class ChannelService:
 
         paid = False
         if ch.subscription_price > 0:
-            if user.wallet_balance < ch.subscription_price:
+            vmoney = int(getattr(user, "vmoney_balance", 0) or 0)
+            if vmoney < ch.subscription_price:
                 raise ValueError("insufficient_balance")
-            user.wallet_balance -= ch.subscription_price
+            user.vmoney_balance = vmoney - ch.subscription_price
             owner = await self.db.get(User, ch.owner_id)
             if owner:
-                owner.wallet_balance += ch.subscription_price
+                owner.vmoney_balance = int(getattr(owner, "vmoney_balance", 0) or 0) + ch.subscription_price
             paid = True
 
         self.db.add(
@@ -575,12 +576,13 @@ class ChannelService:
             raise ValueError("post_not_paid")
         if await self._user_purchased(post.id, user.id):
             return await self._post_dict(post, user)
-        if user.wallet_balance < post.price:
+        vmoney = int(getattr(user, "vmoney_balance", 0) or 0)
+        if vmoney < post.price:
             raise ValueError("insufficient_balance")
-        user.wallet_balance -= post.price
+        user.vmoney_balance = vmoney - post.price
         author = await self.db.get(User, post.author_id)
         if author:
-            author.wallet_balance += post.price
+            author.vmoney_balance = int(getattr(author, "vmoney_balance", 0) or 0) + post.price
         self.db.add(PostPurchase(post_id=post.id, user_id=user.id, amount=post.price))
         await self.db.commit()
         return await self._post_dict(post, user)
@@ -628,9 +630,85 @@ class ChannelService:
         if not post:
             raise ValueError("post_not_found")
         await self._require_member(post.channel_id, user.id)
-        self.db.add(PostComment(post_id=post_id, author_id=user.id, content=content))
+        cleaned = (content or "").strip()
+        if not cleaned:
+            raise ValueError("empty_comment")
+        comment = PostComment(post_id=post_id, author_id=user.id, content=cleaned)
+        self.db.add(comment)
         await self.db.commit()
-        return await self._post_dict(post, user)
+        await self.db.refresh(comment)
+        return {
+            "id": str(comment.id),
+            "post_id": str(comment.post_id),
+            "author_id": str(user.id),
+            "author_username": user.username,
+            "content": comment.content,
+            "created_at": comment.created_at.isoformat()
+            if comment.created_at
+            else datetime.now(timezone.utc).isoformat(),
+        }
+
+    async def list_comments(self, user: User | None, post_id: uuid.UUID) -> list[dict]:
+        post_res = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))
+        post = post_res.scalar_one_or_none()
+        if not post:
+            raise ValueError("post_not_found")
+        ch = await self.db.get(Channel, post.channel_id)
+        if not ch:
+            raise ValueError("channel_not_found")
+        if ch.visibility == ChannelVisibility.CLOSED:
+            if not user or not await self._get_member(ch.id, user.id):
+                raise ValueError("channel_private")
+        try:
+            result = await self.db.execute(
+                select(PostComment, User)
+                .join(User, User.id == PostComment.author_id)
+                .where(PostComment.post_id == post_id)
+                .order_by(PostComment.created_at.asc())
+            )
+        except Exception:
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return []
+        return [
+            {
+                "id": str(c.id),
+                "post_id": str(c.post_id),
+                "author_id": str(u.id),
+                "author_username": u.username,
+                "content": c.content,
+                "created_at": c.created_at.isoformat() if c.created_at else "",
+            }
+            for c, u in result.all()
+        ]
+
+    async def delete_post(self, user: User, post_id: uuid.UUID) -> None:
+        post_res = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))
+        post = post_res.scalar_one_or_none()
+        if not post:
+            raise ValueError("post_not_found")
+        ch = await self.db.get(Channel, post.channel_id)
+        if not ch:
+            raise ValueError("channel_not_found")
+        member = await self._get_member(ch.id, user.id)
+        is_owner = ch.owner_id == user.id
+        can_delete = bool(
+            is_owner
+            or (member and member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN))
+            or (member and member.can_delete)
+            or post.author_id == user.id
+        )
+        if not can_delete:
+            raise ValueError("no_permission")
+        if post.media_url:
+            try:
+                StorageService.delete_by_url(post.media_url)
+            except Exception:
+                pass
+        await self.db.delete(post)
+        await self.db.commit()
 
     async def pin_post(self, user: User, post_id: uuid.UUID) -> None:
         post_res = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))

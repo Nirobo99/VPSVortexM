@@ -14,6 +14,7 @@ class TopUpResponse(BaseModel):
 
 class WalletBalanceResponse(BaseModel):
     balance: int
+    vmoney_balance: int = 0
 
 
 class PaymentResponse(BaseModel):
@@ -36,8 +37,21 @@ class TransactionResponse(BaseModel):
 
 class WalletHistoryResponse(BaseModel):
     balance: int
+    vmoney_balance: int = 0
     payments: list[PaymentResponse]
     transactions: list[TransactionResponse]
+
+
+class ConvertToVmoneyRequest(BaseModel):
+    amount: int = Field(ge=2, le=100_000, description="Rubles to convert (must be even)")
+
+
+class ConvertToVmoneyResponse(BaseModel):
+    balance: int
+    vmoney_balance: int
+    converted_rubles: int
+    received_vmoney: int
+    rate: int
 
 
 class TransferRequest(BaseModel):
@@ -53,5 +67,6 @@ class TransferResponse(BaseModel):
 
 class InvisiblePurchaseResponse(BaseModel):
     balance: int
+    vmoney_balance: int = 0
     invisible_until: str
     invisible_fake_last_seen: str | None

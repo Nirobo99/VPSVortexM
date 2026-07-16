@@ -26,6 +26,7 @@ export interface UserMe {
   activity_points: number;
   level: number;
   wallet_balance: number;
+  vmoney_balance?: number;
   locale: string;
   role: string;
   has_admin_panel: boolean;
@@ -250,6 +251,15 @@ export interface ChannelPost {
   created_at: string;
 }
 
+export interface ChannelPostComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  author_username: string;
+  content: string;
+  created_at: string;
+}
+
 export interface GroupInfo {
   id: string;
   title: string | null;
@@ -285,6 +295,7 @@ export interface WalletTransaction {
 
 export interface WalletHistory {
   balance: number;
+  vmoney_balance?: number;
   payments: WalletPayment[];
   transactions: WalletTransaction[];
 }
@@ -1045,6 +1056,22 @@ class ApiClient {
     );
   }
 
+  getChannelPostComments(postId: string) {
+    return this.request<ChannelPostComment[]>(`/channels/posts/${postId}/comments`, {}, true);
+  }
+
+  addChannelComment(postId: string, content: string) {
+    return this.request<ChannelPostComment>(
+      `/channels/posts/${postId}/comments`,
+      { method: "POST", body: JSON.stringify({ content }) },
+      true
+    );
+  }
+
+  deleteChannelPost(postId: string) {
+    return this.request<{ message: string }>(`/channels/posts/${postId}`, { method: "DELETE" }, true);
+  }
+
   getChannelMembers(slug: string) {
     return this.request<ChannelMember[]>(`/channels/${encodeURIComponent(slug)}/members`, {}, true);
   }
@@ -1172,11 +1199,21 @@ class ApiClient {
   }
 
   getWalletBalance() {
-    return this.request<{ balance: number }>("/wallet/balance", {}, true);
+    return this.request<{ balance: number; vmoney_balance: number }>("/wallet/balance", {}, true);
   }
 
   getWalletHistory() {
     return this.request<WalletHistory>("/wallet/history", {}, true);
+  }
+
+  convertToVmoney(amount: number) {
+    return this.request<{
+      balance: number;
+      vmoney_balance: number;
+      converted_rubles: number;
+      received_vmoney: number;
+      rate: number;
+    }>("/wallet/convert", { method: "POST", body: JSON.stringify({ amount }) }, true);
   }
 
   topUpWallet(amount: number) {

@@ -205,6 +205,7 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         activity_points=user.activity_points,
         level=user.level,
         wallet_balance=user.wallet_balance,
+        vmoney_balance=int(getattr(user, "vmoney_balance", 0) or 0),
         locale=user.locale,
         role=user.role.value,
         has_admin_panel=admin_row.scalar_one_or_none() is not None,

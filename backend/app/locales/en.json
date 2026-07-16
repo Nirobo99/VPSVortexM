@@ -119,6 +119,8 @@
     "post_not_found": "Post not found",
     "cannot_modify_owner": "Cannot change owner role",
     "comment_added": "Comment added",
+    "post_deleted": "Post deleted",
+    "empty_comment": "Enter a comment",
     "post_pinned": "Post pinned",
     "member_updated": "Member permissions updated",
     "verified": "Verification status updated",
@@ -162,11 +164,16 @@
   },
   "wallet": {
     "invalid_amount": "Amount must be between 10 and 100,000 ₽",
+    "amount_must_be_even": "Convert amount must be even (rate 2 ₽ = 1 V.Money)",
     "payment_not_found": "Payment not found",
     "topup_success": "Wallet topped up",
     "topup_pending": "Awaiting payment",
     "topup_canceled": "Payment canceled",
-    "invalid_webhook": "Invalid payment webhook"
+    "invalid_webhook": "Invalid payment webhook",
+    "insufficient_balance": "Insufficient balance",
+    "insufficient_vmoney": "Not enough V.Money — convert rubles in Exchange",
+    "user_not_found": "User not found",
+    "cannot_transfer_self": "Cannot transfer to yourself"
   },
   "admin": {
     "user_not_found": "User not found",
