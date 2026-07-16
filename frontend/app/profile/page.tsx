@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
-import { api, type Profile, type ProfilePost, type ProfilePostComment, type Story, type VerificationRequest } from "@/lib/api";
+import {
+  api,
+  type BlockedUser,
+  type Profile,
+  type ProfilePost,
+  type ProfilePostComment,
+  type Story,
+  type VerificationRequest,
+} from "@/lib/api";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 import { VerificationForm } from "@/components/profile/VerificationForm";
@@ -48,6 +56,12 @@ export default function ProfilePage() {
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishKind, setPublishKind] = useState<PublishKind>("post");
   const [publishText, setPublishText] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [invisibleTime, setInvisibleTime] = useState("");
+  const [blocks, setBlocks] = useState<BlockedUser[]>([]);
+  const [blockUsername, setBlockUsername] = useState("");
   const avatarRef = useRef<HTMLInputElement>(null);
   const mediaRef = useRef<HTMLInputElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -69,6 +83,10 @@ export default function ProfilePage() {
         setStories(s);
         setPosts(wall);
         setVerification(v);
+        setNewUsername(p.username);
+        if (p.invisible_fake_last_seen) {
+          setInvisibleTime(p.invisible_fake_last_seen.slice(0, 16));
+        }
       })
       .catch((e) => setMessage({ type: "err", text: e.message }));
   }, [user]);
@@ -77,6 +95,11 @@ export default function ProfilePage() {
     if (mode !== "edit" || qrSvg) return;
     api.getQrSvg().then(setQrSvg).catch(() => {});
   }, [mode, qrSvg]);
+
+  useEffect(() => {
+    if (mode !== "edit") return;
+    api.getBlocks().then(setBlocks).catch(() => {});
+  }, [mode]);
 
   useEffect(() => {
     if (!shareOpen) return;
@@ -112,6 +135,81 @@ export default function ProfilePage() {
       setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const savePassword = async () => {
+    if (!currentPassword || !newPassword) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setMessage({ type: "ok", text: t("settings.passwordChanged") });
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveUsername = async () => {
+    if (!newUsername.trim()) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      await api.changeUsername(newUsername.trim());
+      const updated = await api.getProfile();
+      setProfile(updated);
+      setNewUsername(updated.username);
+      await reload();
+      setMessage({ type: "ok", text: t("settings.usernameChanged") });
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveInvisibleTime = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      await api.updateInvisibleSettings(invisibleTime ? new Date(invisibleTime).toISOString() : null);
+      const updated = await api.getProfile();
+      setProfile(updated);
+      setMessage({ type: "ok", text: t("settings.invisibleSaved") });
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const blockByUsername = async () => {
+    if (!blockUsername.trim()) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const publicProfile = await api.getPublicProfile(blockUsername.trim());
+      await api.blockUser(publicProfile.id);
+      setBlocks(await api.getBlocks());
+      setBlockUsername("");
+      setMessage({ type: "ok", text: t("settings.userBlocked") });
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const unblock = async (id: string) => {
+    try {
+      await api.unblockUser(id);
+      setBlocks((prev) => prev.filter((b) => b.id !== id));
+    } catch (e) {
+      setMessage({ type: "err", text: e instanceof Error ? e.message : t("auth.error") });
     }
   };
 
@@ -680,6 +778,112 @@ export default function ProfilePage() {
                   }}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("settings.password")}</CardTitle>
+                  <CardDescription>{t("settings.passwordHint")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    type="password"
+                    placeholder={t("settings.currentPassword")}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  <Input
+                    type="password"
+                    placeholder={t("settings.newPassword")}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                  <Button onClick={savePassword} disabled={saving || !currentPassword || !newPassword}>
+                    {t("settings.savePassword")}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("settings.username")}</CardTitle>
+                  <CardDescription>{t("settings.usernameHint")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} />
+                  <Button
+                    onClick={saveUsername}
+                    disabled={saving || !newUsername.trim() || newUsername.trim() === profile.username}
+                  >
+                    {t("settings.saveUsername")}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("wallet.invisibleTitle")}</CardTitle>
+                  <CardDescription>{t("wallet.invisibleHint")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Label>{t("wallet.invisibleFakeTime")}</Label>
+                    <Input
+                      type="datetime-local"
+                      value={invisibleTime}
+                      onChange={(e) => setInvisibleTime(e.target.value)}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={saveInvisibleTime} disabled={saving}>
+                    {t("settings.saveInvisible")}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t("settings.blocklist")}</CardTitle>
+                  <CardDescription>{t("settings.blocklistHint")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={t("settings.blockUsername")}
+                      value={blockUsername}
+                      onChange={(e) => setBlockUsername(e.target.value)}
+                    />
+                    <Button onClick={blockByUsername} disabled={saving || !blockUsername.trim()}>
+                      {t("settings.block")}
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {blocks.map((b) => (
+                      <div
+                        key={b.id}
+                        className="flex items-center justify-between p-2 border border-border rounded-md"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar
+                            src={b.avatar_url}
+                            name={b.display_name || b.username}
+                            className="h-8 w-8 text-xs shrink-0"
+                          />
+                          <span className="text-sm truncate">@{b.username}</span>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => unblock(b.id)}>
+                          {t("settings.unblock")}
+                        </Button>
+                      </div>
+                    ))}
+                    {blocks.length === 0 && (
+                      <p className="text-sm text-muted-foreground">{t("settings.noBlocks")}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </>
         )}
