@@ -40,8 +40,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   useWebSocket((event) => {
     if (event.type === "call_incoming" && event.data && user) {
+      if (user.notify_calls === false) return;
       const data = event.data as unknown as IncomingCall;
       if (data.initiator_id !== user.id) {
+        const audioOk = user.calls_audio_enabled !== false;
+        const videoOk = user.calls_video_enabled !== false;
+        if (data.call_type === "video" && !videoOk) return;
+        if (data.call_type !== "video" && !audioOk) return;
         setIncoming(data);
       }
     }

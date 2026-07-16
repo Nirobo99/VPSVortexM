@@ -34,11 +34,21 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
   const [otherOnline, setOtherOnline] = useState(false);
+  const [chatAppearance, setChatAppearance] = useState("default");
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const aesKeyRef = useRef<CryptoKey | null>(null);
 
   const other = dialog?.participants.find((p) => p.id !== user?.id);
+  const audioCallsEnabled = user?.calls_audio_enabled !== false;
+  const videoCallsEnabled = user?.calls_video_enabled !== false;
+
+  useEffect(() => {
+    const fromUser = user?.chat_appearance;
+    const fromStorage =
+      typeof window !== "undefined" ? localStorage.getItem("vortexm_chat_appearance") : null;
+    setChatAppearance(fromUser || fromStorage || "default");
+  }, [user?.chat_appearance]);
 
   const decryptMessages = useCallback(
     async (msgs: ChatMessage[], detail: DialogDetail) => {
@@ -273,24 +283,47 @@ export default function ChatPage() {
             <Button variant="outline" size="sm" onClick={deleteChat} title={t("chats.deleteChat")}>
               🗑
             </Button>
-            <Button variant="outline" size="sm" onClick={() => startCall(dialogId, "audio")} title={t("calls.audioCall")}>
-              📞
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => startCall(dialogId, "video")} title={t("calls.videoCall")}>
-              📹
-            </Button>
+            {audioCallsEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => startCall(dialogId, "audio")}
+                title={t("calls.audioCall")}
+              >
+                📞
+              </Button>
+            )}
+            {videoCallsEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => startCall(dialogId, "video")}
+                title={t("calls.videoCall")}
+              >
+                📹
+              </Button>
+            )}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-          {messages.map((m) => {
+        <div
+          className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${
+            chatAppearance === "compact"
+              ? "text-sm space-y-1.5"
+              : chatAppearance === "bubbles"
+                ? "space-y-2"
+                : ""
+          }`}
+        >          {messages.map((m) => {
             const mine = m.sender_id === user.id;
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                    mine ? "bg-primary text-primary-foreground" : "bg-muted"
-                  }`}
+                  className={`max-w-[80%] px-3 py-2 text-sm ${
+                    chatAppearance === "bubbles" ? "rounded-2xl" : "rounded-lg"
+                  } ${
+                    chatAppearance === "compact" ? "py-1 px-2 text-xs" : ""
+                  } ${mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}
                 >
                   {dialog.is_group && !mine && (
                     <p className="text-xs font-medium opacity-80 mb-0.5">@{m.sender_username}</p>

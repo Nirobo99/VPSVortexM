@@ -29,6 +29,15 @@ export interface UserMe {
   locale: string;
   role: string;
   has_admin_panel: boolean;
+  notify_messages?: boolean;
+  notify_calls?: boolean;
+  notify_channels?: boolean;
+  notify_sound?: boolean;
+  chat_auto_clear_hours?: number | null;
+  chat_appearance?: string;
+  prefer_encrypted_chats?: boolean;
+  calls_audio_enabled?: boolean;
+  calls_video_enabled?: boolean;
 }
 
 export interface Profile extends UserMe {
@@ -623,6 +632,15 @@ class ApiClient {
     birth_date?: string | null;
     profile_visibility?: string;
     locale?: string;
+    notify_messages?: boolean;
+    notify_calls?: boolean;
+    notify_channels?: boolean;
+    notify_sound?: boolean;
+    chat_auto_clear_hours?: number | null;
+    chat_appearance?: string;
+    prefer_encrypted_chats?: boolean;
+    calls_audio_enabled?: boolean;
+    calls_video_enabled?: boolean;
   }) {
     return this.request<Profile>(
       "/users/me/profile",
@@ -751,10 +769,17 @@ class ApiClient {
     return this.request<DialogListItem[]>("/chats/dialogs", {}, true);
   }
 
-  createDialog(username: string, isSecret = false) {
+  createDialog(username: string, isSecret = false, autoDeleteSeconds?: number | null) {
     return this.request<DialogDetail>(
       "/chats/dialogs",
-      { method: "POST", body: JSON.stringify({ username, is_secret: isSecret }) },
+      {
+        method: "POST",
+        body: JSON.stringify({
+          username,
+          is_secret: isSecret,
+          auto_delete_seconds: autoDeleteSeconds ?? undefined,
+        }),
+      },
       true
     );
   }
