@@ -11,6 +11,7 @@ from app.services.messaging_service import MessagingService
 from app.models.payments import TransactionType, WalletTransaction
 from app.services.support_notify_service import SupportNotifyService
 from app.services.storage_service import StorageService
+from app.services.unread_service import UnreadService
 from app.services.ws_manager import ws_manager
 
 # Fixed ban presets: reason code → (hours or None forever, display label for message)
@@ -243,6 +244,9 @@ class ConversationService:
             "is_member": is_member,
             "is_owner": bool(viewer_id and dialog.owner_id == viewer_id),
             "is_admin": is_admin,
+            "unread_count": (
+                await UnreadService.get(str(viewer_id), str(dialog.id)) if viewer_id and is_member else 0
+            ),
             "created_at": dialog.created_at.isoformat(),
         }
 

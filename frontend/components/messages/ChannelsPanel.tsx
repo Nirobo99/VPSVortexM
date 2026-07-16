@@ -43,8 +43,8 @@ export function ChannelsPanel() {
         {channels.map((ch) => (
           <Link key={ch.id} href={`/channels/${ch.slug}`}>
             <Card className="hover:border-primary/50 transition-colors">
-              <CardContent className="py-4 flex items-center justify-between">
-                <div>
+              <CardContent className="py-4 flex items-center justify-between gap-2">
+                <div className="min-w-0">
                   <p className="font-medium flex items-center gap-1.5 min-w-0">
                     <span className="truncate">{ch.title}</span>
                     {ch.is_verified && <VerifiedBadge className="h-5 w-5 text-[11px]" />}
@@ -54,7 +54,14 @@ export function ChannelsPanel() {
                     {ch.subscription_price > 0 && ` · ${ch.subscription_price} ₽`}
                   </p>
                 </div>
-                <span className="text-xs text-muted-foreground">{ch.visibility}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {(ch.unread_count || 0) > 0 && (
+                    <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center tabular-nums">
+                      {(ch.unread_count || 0) > 99 ? "99+" : ch.unread_count}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">{ch.visibility}</span>
+                </div>
               </CardContent>
             </Card>
           </Link>

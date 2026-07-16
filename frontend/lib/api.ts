@@ -201,6 +201,8 @@ export interface ChannelInfo {
   my_role?: string | null;
   can_post?: boolean;
   can_manage_members?: boolean;
+  can_pin?: boolean;
+  unread_count?: number;
   created_at: string;
 }
 
@@ -273,6 +275,7 @@ export interface GroupInfo {
   is_member?: boolean;
   is_owner?: boolean;
   is_admin?: boolean;
+  unread_count?: number;
   created_at: string;
 }
 
@@ -400,6 +403,7 @@ export interface DialogDetail {
   member_count: number | null;
   folder_id: string | null;
   pinned_message_id: string | null;
+  pinned_message_preview?: string | null;
   auto_delete_seconds: number | null;
   participants: DialogParticipant[];
   unread_count: number;
@@ -409,6 +413,13 @@ export interface DialogDetail {
   ban_reason?: string | null;
   banned_until?: string | null;
   ban_message?: string | null;
+}
+
+export interface UnreadSummary {
+  chats: number;
+  groups: number;
+  channels: number;
+  total: number;
 }
 
 export interface ChatMessage {
@@ -795,6 +806,10 @@ class ApiClient {
     return this.request<DialogListItem[]>("/chats/dialogs", {}, true);
   }
 
+  getUnreadSummary() {
+    return this.request<UnreadSummary>("/chats/unread-summary", {}, true);
+  }
+
   createDialog(username: string, isSecret = false, autoDeleteSeconds?: number | null) {
     return this.request<DialogDetail>(
       "/chats/dialogs",
@@ -1071,6 +1086,14 @@ class ApiClient {
 
   deleteChannelPost(postId: string) {
     return this.request<{ message: string }>(`/channels/posts/${postId}`, { method: "DELETE" }, true);
+  }
+
+  pinChannelPost(postId: string) {
+    return this.request<{ message: string }>(`/channels/posts/${postId}/pin`, { method: "POST" }, true);
+  }
+
+  unpinChannelPost(postId: string) {
+    return this.request<{ message: string }>(`/channels/posts/${postId}/pin`, { method: "DELETE" }, true);
   }
 
   getChannelMembers(slug: string) {

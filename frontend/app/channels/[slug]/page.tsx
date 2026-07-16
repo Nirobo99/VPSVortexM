@@ -350,6 +350,36 @@ export default function ChannelPage() {
   const canPost = !!channel && (channel.can_post || canManage);
   const canManageMembers = !!channel?.can_manage_members || canManage;
   const canEditSettings = canManage || canPost || channel?.my_role === "admin";
+  const canPin =
+    !!channel &&
+    (canManage ||
+      canPost ||
+      !!channel.can_pin ||
+      channel.my_role === "admin" ||
+      channel.my_role === "owner");
+  const pinnedPost = posts.find((p) => p.is_pinned) || null;
+
+  const scrollToPost = (postId: string) => {
+    const el = document.getElementById(`channel-post-${postId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 1500);
+    }
+  };
+
+  const togglePinPost = async (post: ChannelPost) => {
+    try {
+      if (post.is_pinned) {
+        await api.unpinChannelPost(post.id);
+      } else {
+        await api.pinChannelPost(post.id);
+      }
+      await load();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
 
   const postTypeLabel =
     postType === "poll"
@@ -440,6 +470,21 @@ export default function ChannelPage() {
             )}
           </div>
         </header>
+
+        {pinnedPost && (
+          <button
+            type="button"
+            onClick={() => scrollToPost(pinnedPost.id)}
+            className="w-full text-left px-3 py-2 border-b border-border bg-primary/5 hover:bg-primary/10 shrink-0 flex items-center gap-2"
+          >
+            <span className="text-primary shrink-0">📌</span>
+            <span className="text-sm truncate flex-1">
+              {pinnedPost.content_locked
+                ? t("channels.lockedPost")
+                : pinnedPost.content || t("channels.pinnedPost")}
+            </span>
+          </button>
+        )}
 
         {message && (
           <p className="px-4 py-2 text-sm text-muted-foreground border-b border-border shrink-0">{message}</p>
@@ -637,15 +682,28 @@ export default function ChannelPage() {
         {/* Posts feed */}
         <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
           {posts.map((post) => (
-            <Card key={post.id} className={post.is_pinned ? "border-primary" : ""}>
+            <Card
+              key={post.id}
+              id={`channel-post-${post.id}`}
+              className={post.is_pinned ? "border-primary scroll-mt-24" : "scroll-mt-24"}
+            >
               <CardContent className="pt-4">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                  <Link href={`/users/${post.author_username}`} className="hover:underline">
-                    @{post.author_username}
-                  </Link>
                   {post.is_announcement && <span className="text-primary">📢</span>}
                   {post.is_pinned && <span>📌</span>}
                   <span className="ml-auto" />
+                  {canPin && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      className="h-7 px-2"
+                      onClick={() => togglePinPost(post)}
+                      title={post.is_pinned ? t("channels.unpin") : t("channels.pin")}
+                    >
+                      {post.is_pinned ? t("channels.unpin") : "📌"}
+                    </Button>
+                  )}
                   {((canManage || (user && post.author_id === user.id)) && (
                     <Button
                       size="sm"

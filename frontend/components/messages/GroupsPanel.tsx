@@ -193,8 +193,15 @@ export function GroupsPanel() {
               <div className="flex justify-between items-center gap-2">
                 <Link href={`/chats/${g.id}`} className="min-w-0 flex-1 flex items-center gap-3">
                   <Avatar src={g.avatar_url} name={g.title || "G"} className="h-10 w-10 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{g.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium truncate flex items-center gap-2">
+                      <span className="truncate">{g.title}</span>
+                      {(g.unread_count || 0) > 0 && (
+                        <span className="min-w-[1.15rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-semibold flex items-center justify-center tabular-nums shrink-0">
+                          {(g.unread_count || 0) > 99 ? "99+" : g.unread_count}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {g.member_count}/{g.member_limit} {t("groups.membersCount")}
                       {g.is_public ? ` · ${t("groups.public")}` : ` · ${t("groups.private")}`}

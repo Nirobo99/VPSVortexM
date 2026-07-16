@@ -181,6 +181,35 @@ class MessagingService:
             })
         return items
 
+    async def get_unread_summary(self, user: User) -> dict:
+        result = await self.db.execute(
+            select(DialogParticipant, Dialog)
+            .join(Dialog, Dialog.id == DialogParticipant.dialog_id)
+            .where(DialogParticipant.user_id == user.id, DialogParticipant.is_hidden == False)
+        )
+        chats = 0
+        groups = 0
+        for participant, dialog in result.all():
+            n = await UnreadService.get(str(user.id), str(dialog.id))
+            if dialog.dialog_type == DialogType.GROUP:
+                groups += n
+            else:
+                chats += n
+
+        from app.models.channels import ChannelMember
+
+        ch_res = await self.db.execute(
+            select(ChannelMember.channel_id).where(ChannelMember.user_id == user.id)
+        )
+        channel_ids = [str(row[0]) for row in ch_res.all()]
+        channels = await UnreadService.get_channels_total(str(user.id), channel_ids)
+        return {
+            "chats": chats,
+            "groups": groups,
+            "channels": channels,
+            "total": chats + groups + channels,
+        }
+
     async def _get_other_participant(self, dialog_id: uuid.UUID, user_id: uuid.UUID) -> User | None:
         result = await self.db.execute(
             select(User)
@@ -251,6 +280,24 @@ class MessagingService:
                 banned_until = None
             else:
                 banned = True
+        pinned_preview = None
+        if participant.pinned_message_id:
+            pin_res = await self.db.execute(
+                select(Message).where(
+                    Message.id == participant.pinned_message_id,
+                    Message.dialog_id == dialog_id,
+                )
+            )
+            pinned_msg = pin_res.scalar_one_or_none()
+            if pinned_msg and not pinned_msg.is_deleted:
+                is_secret = dialog.dialog_type == DialogType.SECRET
+                content = self._decrypt_content(pinned_msg, is_secret)
+                if is_secret:
+                    pinned_preview = "🔒"
+                elif content:
+                    pinned_preview = content[:120]
+                else:
+                    pinned_preview = f"[{pinned_msg.message_type.value}]"
         return {
             "dialog": dialog,
             "participant": participant,
@@ -264,6 +311,7 @@ class MessagingService:
             "ban_message": (
                 _group_ban_message(ban_reason) if banned else None
             ),
+            "pinned_message_preview": pinned_preview,
         }
 
     async def set_e2e_key(self, user: User, dialog_id: uuid.UUID, public_key: str) -> None:
@@ -324,14 +372,42 @@ class MessagingService:
 
     async def pin_message(self, user: User, dialog_id: uuid.UUID, message_id: uuid.UUID | None) -> None:
         participant = await self._require_participant(dialog_id, user.id)
+        result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id))
+        dialog = result.scalar_one_or_none()
+        if not dialog:
+            raise ValueError("dialog_not_found")
         if message_id:
-            result = await self.db.execute(
+            msg_res = await self.db.execute(
                 select(Message).where(Message.id == message_id, Message.dialog_id == dialog_id)
             )
-            if not result.scalar_one_or_none():
+            if not msg_res.scalar_one_or_none():
                 raise ValueError("message_not_found")
-        participant.pinned_message_id = message_id
+        if dialog.dialog_type == DialogType.GROUP:
+            can_pin = bool(
+                participant.can_moderate
+                or participant.is_admin
+                or participant.role == "owner"
+                or dialog.owner_id == user.id
+            )
+            if not can_pin:
+                raise ValueError("no_permission")
+            parts = await self.db.execute(
+                select(DialogParticipant).where(DialogParticipant.dialog_id == dialog_id)
+            )
+            for p in parts.scalars().all():
+                p.pinned_message_id = message_id
+        else:
+            participant.pinned_message_id = message_id
         await self.db.commit()
+        member_ids = await self._other_user_ids(dialog_id, user.id)
+        await ws_manager.publish_many(
+            [str(uid) for uid in member_ids] + [str(user.id)],
+            {
+                "type": "message_pinned",
+                "dialog_id": str(dialog_id),
+                "message_id": str(message_id) if message_id else None,
+            },
+        )
 
     def _decrypt_content(self, msg: Message, is_secret: bool) -> str | None:
         if is_secret:

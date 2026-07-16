@@ -268,7 +268,10 @@
     "deleted": "Message deleted",
     "edited": "edited",
     "file": "File",
-    "openChat": "Open chat"
+    "openChat": "Open chat",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinnedMessage": "Pinned message"
   },
   "calls": {
     "incoming": "Incoming call",
@@ -322,6 +325,9 @@
     "lockedPost": "Paid post",
     "unlock": "Unlock",
     "deletePost": "Delete",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinnedPost": "Pinned post",
     "comments": "Comments",
     "commentPlaceholder": "Write a comment…",
     "sendComment": "Send",

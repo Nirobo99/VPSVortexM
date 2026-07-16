@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadSummary } from "@/hooks/useUnreadSummary";
 import { LanguageSwitcher } from "@/components/auth/AuthLayout";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Avatar, Button } from "@/components/ui";
@@ -41,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { summary } = useUnreadSummary(!!user && !loading);
 
   const clearIdleTimer = useCallback(() => {
     if (idleTimer.current) {
@@ -173,6 +175,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <span className="flex-1">{t(`nav.${key}`)}</span>
+                {key === "messages" && summary.total > 0 && (
+                  <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center tabular-nums">
+                    {summary.total > 99 ? "99+" : summary.total}
+                  </span>
+                )}
                 {key === "wallet" && (
                   <span className="text-xs font-semibold text-primary tabular-nums">
                     {user.wallet_balance.toLocaleString()} ₽

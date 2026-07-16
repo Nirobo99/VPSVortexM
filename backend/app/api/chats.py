@@ -28,6 +28,7 @@ from app.schemas.messaging import (
     MoveDialogFolderRequest,
     ReactionResponse,
     ReplyPreview,
+    UnreadSummaryResponse,
     SearchResponse,
     SearchResultItem,
 )
@@ -116,6 +117,7 @@ def _dialog_detail_response(detail, participants: list[DialogParticipantInfo]) -
         member_count=len(detail["participants"]) if d.dialog_type.value == "group" else None,
         folder_id=str(p.folder_id) if p.folder_id else None,
         pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
+        pinned_message_preview=detail.get("pinned_message_preview"),
         auto_delete_seconds=d.auto_delete_seconds,
         participants=participants,
         unread_count=detail["unread_count"],
@@ -180,6 +182,12 @@ async def delete_folder(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=t(f"chats.{e}", lang))
     return MessageResponse(message=t("chats.folder_deleted", lang))
+
+
+@router.get("/unread-summary", response_model=UnreadSummaryResponse)
+async def unread_summary(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    service = MessagingService(db)
+    return UnreadSummaryResponse(**(await service.get_unread_summary(user)))
 
 
 @router.get("/dialogs", response_model=list[DialogListItem])

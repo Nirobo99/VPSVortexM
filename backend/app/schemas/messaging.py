@@ -71,6 +71,7 @@ class DialogDetailResponse(BaseModel):
     member_count: int | None = None
     folder_id: str | None
     pinned_message_id: str | None
+    pinned_message_preview: str | None = None
     auto_delete_seconds: int | None
     participants: list[DialogParticipantInfo]
     unread_count: int
@@ -80,6 +81,13 @@ class DialogDetailResponse(BaseModel):
     ban_reason: str | None = None
     banned_until: str | None = None
     ban_message: str | None = None
+
+
+class UnreadSummaryResponse(BaseModel):
+    chats: int
+    groups: int
+    channels: int
+    total: int
 
 
 class MoveDialogFolderRequest(BaseModel):

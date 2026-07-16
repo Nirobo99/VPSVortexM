@@ -156,6 +156,8 @@ class ChannelResponse(BaseModel):
     my_role: str | None = None
     can_post: bool = False
     can_manage_members: bool = False
+    can_pin: bool = False
+    unread_count: int = 0
     created_at: str
 
 
@@ -194,4 +196,5 @@ class GroupResponse(BaseModel):
     is_member: bool = False
     is_owner: bool = False
     is_admin: bool = False
+    unread_count: int = 0
     created_at: str

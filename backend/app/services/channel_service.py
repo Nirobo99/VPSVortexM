@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -27,6 +27,7 @@ from app.models.channels import (
 )
 from app.models.user import User
 from app.services.storage_service import StorageService
+from app.services.unread_service import UnreadService
 from app.services.ws_manager import ws_manager
 
 GROUP_EXTENSION_PRICE = 500
@@ -140,15 +141,16 @@ class ChannelService:
             if ch.visibility == ChannelVisibility.CLOSED and not is_member:
                 continue
             is_owner = bool(user and ch.owner_id == user.id)
-            out.append(self._channel_dict(ch, is_member, is_owner, member))
+            out.append(await self._channel_dict(ch, is_member, is_owner, member, user))
         return out
 
-    def _channel_dict(
+    async def _channel_dict(
         self,
         ch: Channel,
         is_member: bool = False,
         is_owner: bool = False,
         member: ChannelMember | None = None,
+        viewer: User | None = None,
     ) -> dict:
         my_role = member.role.value if member else None
         can_post = bool(
@@ -171,6 +173,20 @@ class ChannelService:
                 )
             )
         )
+        can_pin = bool(
+            is_owner
+            or (
+                member
+                and (
+                    member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)
+                    or member.can_pin
+                    or member.can_post
+                )
+            )
+        )
+        unread = 0
+        if viewer and is_member:
+            unread = await UnreadService.get_channel(str(viewer.id), str(ch.id))
         return {
             "id": str(ch.id),
             "slug": ch.slug,
@@ -187,6 +203,8 @@ class ChannelService:
             "my_role": my_role,
             "can_post": can_post,
             "can_manage_members": can_manage_members,
+            "can_pin": can_pin,
+            "unread_count": unread,
             "created_at": ch.created_at.isoformat(),
         }
 
@@ -204,7 +222,7 @@ class ChannelService:
             is_owner = ch.owner_id == user.id
         if ch.visibility == ChannelVisibility.CLOSED and not is_member:
             raise ValueError("channel_private")
-        return self._channel_dict(ch, is_member, is_owner, member)
+        return await self._channel_dict(ch, is_member, is_owner, member, user)
 
     async def update_channel(
         self,
@@ -238,7 +256,7 @@ class ChannelService:
         await self.db.commit()
         await self.db.refresh(ch)
         member = await self._get_member(ch.id, user.id)
-        return self._channel_dict(ch, True, ch.owner_id == user.id, member)
+        return await self._channel_dict(ch, True, ch.owner_id == user.id, member, user)
 
     async def upload_avatar(self, user: User, slug: str, content: bytes, content_type: str) -> dict:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
@@ -256,7 +274,7 @@ class ChannelService:
         await self.db.commit()
         await self.db.refresh(ch)
         member = await self._get_member(ch.id, user.id)
-        return self._channel_dict(ch, True, ch.owner_id == user.id, member)
+        return await self._channel_dict(ch, True, ch.owner_id == user.id, member, user)
 
     async def join_channel(self, user: User, slug: str) -> dict:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
@@ -300,7 +318,7 @@ class ChannelService:
         ch.subscriber_count += 1
         await self.db.commit()
         member = await self._get_member(ch.id, user.id)
-        return self._channel_dict(ch, True, False, member)
+        return await self._channel_dict(ch, True, False, member, user)
 
     async def leave_channel(self, user: User, slug: str) -> None:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
@@ -405,6 +423,31 @@ class ChannelService:
             except Exception:
                 # Notifications must not fail the publish response.
                 pass
+
+        try:
+            members_res = await self.db.execute(
+                select(ChannelMember.user_id).where(ChannelMember.channel_id == ch.id)
+            )
+            notify_ids: list[str] = []
+            for (uid,) in members_res.all():
+                if uid == user.id:
+                    continue
+                await UnreadService.increment_channel(str(uid), str(ch.id))
+                notify_ids.append(str(uid))
+            if notify_ids:
+                await ws_manager.publish_many(
+                    notify_ids,
+                    {
+                        "type": "channel_post_new",
+                        "data": {
+                            "channel_id": str(ch.id),
+                            "channel_slug": ch.slug,
+                            "post_id": str(post.id),
+                        },
+                    },
+                )
+        except Exception:
+            pass
 
         return await self._post_dict(post, user)
 
@@ -559,6 +602,9 @@ class ChannelService:
         if ch.visibility == ChannelVisibility.CLOSED:
             if not user or not await self._get_member(ch.id, user.id):
                 raise ValueError("channel_private")
+
+        if user and await self._get_member(ch.id, user.id):
+            await UnreadService.reset_channel(str(user.id), str(ch.id))
 
         posts_res = await self.db.execute(
             select(ChannelPost)
@@ -720,15 +766,40 @@ class ChannelService:
         await self.db.delete(post)
         await self.db.commit()
 
-    async def pin_post(self, user: User, post_id: uuid.UUID) -> None:
+    async def pin_post(self, user: User, post_id: uuid.UUID, pinned: bool = True) -> None:
         post_res = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))
         post = post_res.scalar_one_or_none()
         if not post:
             raise ValueError("post_not_found")
-        member = await self._require_member(post.channel_id, user.id)
-        if not member.can_pin and member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
+        ch = await self.db.get(Channel, post.channel_id)
+        if not ch:
+            raise ValueError("channel_not_found")
+        member = await self._get_member(post.channel_id, user.id)
+        is_owner = ch.owner_id == user.id
+        if not is_owner and not member:
+            raise ValueError("not_member")
+        can_pin = bool(
+            is_owner
+            or (
+                member
+                and (
+                    member.can_pin
+                    or member.can_post
+                    or member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)
+                )
+            )
+        )
+        if not can_pin:
             raise ValueError("no_permission")
-        post.is_pinned = True
+        if pinned:
+            await self.db.execute(
+                update(ChannelPost)
+                .where(ChannelPost.channel_id == post.channel_id, ChannelPost.is_pinned.is_(True))
+                .values(is_pinned=False)
+            )
+            post.is_pinned = True
+        else:
+            post.is_pinned = False
         await self.db.commit()
 
     async def send_broadcast(self, user: User, slug: str, content: str, mention_all: bool = False) -> dict:
@@ -838,7 +909,7 @@ class ChannelService:
         ch.owner_id = new_owner_id
         await self.db.commit()
         await self.db.refresh(ch)
-        return self._channel_dict(ch, True, False, old_owner_member)
+        return await self._channel_dict(ch, True, False, old_owner_member, user)
 
     async def list_members(self, user: User, slug: str) -> list[dict]:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))

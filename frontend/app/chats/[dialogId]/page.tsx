@@ -189,6 +189,9 @@ export default function ChatPage() {
         setMessages((prev) => prev.map((m) => (m.id === msg.id ? msg : m)));
       }
     }
+    if (event.type === "message_pinned" && event.dialog_id === dialogId) {
+      load().catch(() => {});
+    }
     if (event.type === "message_delete" && event.data) {
       const data = event.data as { id: string };
       setMessages((prev) =>
@@ -502,6 +505,45 @@ export default function ChatPage() {
           )}
         </header>
 
+        {dialog.pinned_message_id && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById(`chat-msg-${dialog.pinned_message_id}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("ring-2", "ring-primary");
+                setTimeout(() => el.classList.remove("ring-2", "ring-primary"), 1500);
+              }
+            }}
+            className="w-full text-left px-3 py-2 border-b border-border bg-primary/5 hover:bg-primary/10 shrink-0 flex items-center gap-2"
+          >
+            <span className="text-primary shrink-0">📌</span>
+            <span className="text-sm truncate flex-1">
+              {dialog.pinned_message_preview || t("chats.pinnedMessage")}
+            </span>
+            {(canModerate || !dialog.is_group) && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="text-xs text-muted-foreground hover:text-foreground shrink-0 px-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  api.unpinMessage(dialogId).then(() => load()).catch(() => {});
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.stopPropagation();
+                    api.unpinMessage(dialogId).then(() => load()).catch(() => {});
+                  }
+                }}
+              >
+                ✕
+              </span>
+            )}
+          </button>
+        )}
+
         {dialog.is_group && (settingsOpen || membersOpen) && (
           <div className="overflow-y-auto max-h-[40%] border-b border-border shrink-0 px-3 py-3 space-y-3">
             {settingsOpen && canModerate && (
@@ -623,14 +665,21 @@ export default function ChatPage() {
         >
           {messages.map((m) => {
             const mine = m.sender_id === user.id;
+            const canPinMsg = !m.is_deleted && (dialog.is_group ? canModerate || dialog.my_role === "owner" : true);
             return (
-              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div
+                key={m.id}
+                id={`chat-msg-${m.id}`}
+                className={`flex scroll-mt-24 ${mine ? "justify-end" : "justify-start"}`}
+              >
                 <div
                   className={`max-w-[80%] px-3 py-2 text-sm ${
                     chatAppearance === "bubbles" ? "rounded-2xl" : "rounded-lg"
                   } ${
                     chatAppearance === "compact" ? "py-1 px-2 text-xs" : ""
-                  } ${mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+                  } ${mine ? "bg-primary text-primary-foreground" : "bg-muted"} ${
+                    dialog.pinned_message_id === m.id ? "ring-1 ring-primary/50" : ""
+                  }`}
                 >
                   {dialog.is_group && !mine && (
                     <p className="text-xs font-medium opacity-80 mb-0.5">@{m.sender_username}</p>
@@ -692,27 +741,50 @@ export default function ChatPage() {
                     >
                       👍
                     </button>
-                    {mine && !m.is_deleted && (
+                    {canPinMsg && (
                       <>
                         <button
                           className="text-xs opacity-60 hover:opacity-100"
-                          onClick={() => api.pinMessage(dialogId, m.id)}
+                          onClick={() =>
+                            api.pinMessage(dialogId, m.id).then(() => load()).catch(() => {})
+                          }
+                          title={t("chats.pin")}
                         >
                           📌
                         </button>
-                        <button
-                          className="text-xs opacity-60 hover:opacity-100"
-                          onClick={() =>
-                            api.deleteMessage(m.id).then(() =>
-                              setMessages((prev) =>
-                                prev.map((msg) => (msg.id === m.id ? { ...msg, is_deleted: true, content: null } : msg))
+                        {mine && (
+                          <button
+                            className="text-xs opacity-60 hover:opacity-100"
+                            onClick={() =>
+                              api.deleteMessage(m.id).then(() =>
+                                setMessages((prev) =>
+                                  prev.map((msg) =>
+                                    msg.id === m.id ? { ...msg, is_deleted: true, content: null } : msg
+                                  )
+                                )
+                              )
+                            }
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {!canPinMsg && mine && !m.is_deleted && (
+                      <button
+                        className="text-xs opacity-60 hover:opacity-100"
+                        onClick={() =>
+                          api.deleteMessage(m.id).then(() =>
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.id === m.id ? { ...msg, is_deleted: true, content: null } : msg
                               )
                             )
-                          }
-                        >
-                          ✕
-                        </button>
-                      </>
+                          )
+                        }
+                      >
+                        ✕
+                      </button>
                     )}
                   </div>
                 </div>

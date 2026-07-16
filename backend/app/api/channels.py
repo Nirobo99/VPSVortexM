@@ -54,7 +54,7 @@ async def create_channel(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     member = await service._get_member(ch.id, user.id)
-    return ChannelResponse(**service._channel_dict(ch, True, True, member))
+    return ChannelResponse(**(await service._channel_dict(ch, True, True, member, user)))
 
 
 @router.get("", response_model=list[ChannelResponse])
@@ -354,10 +354,26 @@ async def pin_post(
     lang = _lang(request)
     service = ChannelService(db)
     try:
-        await service.pin_post(user, uuid.UUID(post_id))
+        await service.pin_post(user, uuid.UUID(post_id), True)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
     return MessageResponse(message=t("channels.post_pinned", lang))
+
+
+@router.delete("/posts/{post_id}/pin", response_model=MessageResponse)
+async def unpin_post(
+    post_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    service = ChannelService(db)
+    try:
+        await service.pin_post(user, uuid.UUID(post_id), False)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+    return MessageResponse(message=t("channels.post_unpinned", lang))
 
 
 @router.post("/{slug}/broadcast", response_model=dict)
