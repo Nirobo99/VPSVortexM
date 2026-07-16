@@ -200,6 +200,27 @@ async def lifespan(app: FastAPI):
           END IF;
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'dialog_participants'
+          ) THEN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'dialog_participants' AND column_name = 'ban_reason'
+            ) THEN
+              ALTER TABLE dialog_participants ADD COLUMN ban_reason varchar(32);
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'dialog_participants' AND column_name = 'banned_until'
+            ) THEN
+              ALTER TABLE dialog_participants ADD COLUMN banned_until timestamptz;
+            END IF;
+          END IF;
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text

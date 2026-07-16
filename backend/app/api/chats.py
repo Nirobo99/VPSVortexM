@@ -42,8 +42,30 @@ def _lang(request: Request) -> str:
     return request.headers.get("Accept-Language", "ru")[:2]
 
 
-def _participant_info(user, e2e_key=None, last_read_at=None, presence=None) -> DialogParticipantInfo:
+def _participant_info(
+    user,
+    e2e_key=None,
+    last_read_at=None,
+    presence=None,
+    *,
+    role=None,
+    is_admin=False,
+    ban_reason=None,
+    banned_until=None,
+) -> DialogParticipantInfo:
+    from datetime import datetime, timezone
+
     pres = presence or {}
+    banned = False
+    if ban_reason:
+        if banned_until:
+            try:
+                until = datetime.fromisoformat(banned_until.replace("Z", "+00:00"))
+                banned = until > datetime.now(timezone.utc)
+            except Exception:
+                banned = True
+        else:
+            banned = True
     return DialogParticipantInfo(
         id=str(user.id),
         username=user.username,
@@ -54,12 +76,56 @@ def _participant_info(user, e2e_key=None, last_read_at=None, presence=None) -> D
         is_online=pres.get("is_online", False),
         last_seen_at=pres.get("last_seen_at"),
         is_official_verified=bool(getattr(user, "is_official_verified", False)),
+        role=role,
+        is_admin=bool(is_admin),
+        ban_reason=ban_reason if banned else None,
+        banned_until=banned_until if banned else None,
+        is_banned=banned,
     )
 
 
-async def _participant_info_async(db, user, viewer_id, e2e_key=None, last_read_at=None) -> DialogParticipantInfo:
+async def _participant_info_async(
+    db, user, viewer_id, e2e_key=None, last_read_at=None, extra: dict | None = None
+) -> DialogParticipantInfo:
     presence = await PresenceService.get_status(db, str(user.id), viewer_id)
-    return _participant_info(user, e2e_key, last_read_at, presence)
+    extra = extra or {}
+    return _participant_info(
+        user,
+        e2e_key,
+        last_read_at,
+        presence,
+        role=extra.get("role"),
+        is_admin=extra.get("is_admin", False),
+        ban_reason=extra.get("ban_reason"),
+        banned_until=extra.get("banned_until"),
+    )
+
+
+def _dialog_detail_response(detail, participants: list[DialogParticipantInfo]) -> DialogDetailResponse:
+    d = detail["dialog"]
+    p = detail["participant"]
+    return DialogDetailResponse(
+        id=str(d.id),
+        dialog_type=d.dialog_type.value.lower(),
+        is_secret=d.dialog_type.value == "secret",
+        is_group=d.dialog_type.value == "group",
+        title=d.title,
+        description=d.description,
+        avatar_url=StorageService.generate_presigned_url(d.avatar_url),
+        owner_id=str(d.owner_id) if d.owner_id else None,
+        member_count=len(detail["participants"]) if d.dialog_type.value == "group" else None,
+        folder_id=str(p.folder_id) if p.folder_id else None,
+        pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
+        auto_delete_seconds=d.auto_delete_seconds,
+        participants=participants,
+        unread_count=detail["unread_count"],
+        my_role=detail.get("my_role"),
+        can_moderate=bool(detail.get("can_moderate")),
+        is_banned=bool(detail.get("is_banned")),
+        ban_reason=detail.get("ban_reason"),
+        banned_until=detail.get("banned_until"),
+        ban_message=detail.get("ban_message"),
+    )
 
 
 @router.get("/folders", response_model=list[FolderResponse])
@@ -184,22 +250,15 @@ async def create_dialog(
     for item in detail["participants"]:
         participants.append(
             await _participant_info_async(
-                db, item["user"], str(user.id), item["e2e_public_key"], item.get("last_read_at")
+                db,
+                item["user"],
+                str(user.id),
+                item["e2e_public_key"],
+                item.get("last_read_at"),
+                extra=item,
             )
         )
-    return DialogDetailResponse(
-        id=str(d.id),
-        dialog_type=d.dialog_type.value.lower(),
-        is_secret=d.dialog_type.value == "secret",
-        is_group=d.dialog_type.value == "group",
-        title=d.title,
-        member_count=len(detail["participants"]) if d.dialog_type.value == "group" else None,
-        folder_id=str(p.folder_id) if p.folder_id else None,
-        pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
-        auto_delete_seconds=d.auto_delete_seconds,
-        participants=participants,
-        unread_count=detail["unread_count"],
-    )
+    return _dialog_detail_response(detail, participants)
 
 
 @router.get("/dialogs/{dialog_id}", response_model=DialogDetailResponse)
@@ -215,28 +274,19 @@ async def get_dialog(
         detail = await service.get_dialog_detail(user, uuid.UUID(dialog_id))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=t(f"chats.{e}", lang))
-    d = detail["dialog"]
-    p = detail["participant"]
     participants = []
     for item in detail["participants"]:
         participants.append(
             await _participant_info_async(
-                db, item["user"], str(user.id), item["e2e_public_key"], item.get("last_read_at")
+                db,
+                item["user"],
+                str(user.id),
+                item["e2e_public_key"],
+                item.get("last_read_at"),
+                extra=item,
             )
         )
-    return DialogDetailResponse(
-        id=str(d.id),
-        dialog_type=d.dialog_type.value.lower(),
-        is_secret=d.dialog_type.value == "secret",
-        is_group=d.dialog_type.value == "group",
-        title=d.title,
-        member_count=len(detail["participants"]) if d.dialog_type.value == "group" else None,
-        folder_id=str(p.folder_id) if p.folder_id else None,
-        pinned_message_id=str(p.pinned_message_id) if p.pinned_message_id else None,
-        auto_delete_seconds=d.auto_delete_seconds,
-        participants=participants,
-        unread_count=detail["unread_count"],
-    )
+    return _dialog_detail_response(detail, participants)
 
 
 @router.delete("/dialogs/{dialog_id}", response_model=MessageResponse)
@@ -433,6 +483,13 @@ async def send_message(
         )
     except ValueError as e:
         key = str(e)
+        if key == "member_banned":
+            try:
+                detail = await service.get_dialog_detail(user, uuid.UUID(dialog_id))
+                msg = detail.get("ban_message") or t("chats.member_banned", lang)
+            except Exception:
+                msg = t("chats.member_banned", lang)
+            raise HTTPException(status_code=403, detail=msg)
         raise HTTPException(status_code=400, detail=t(f"chats.{key}", lang))
     return _to_msg_response(msg)
 

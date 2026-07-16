@@ -86,6 +86,7 @@
     "dialog_not_found": "Диалог не найден",
     "folder_not_found": "Папка не найдена",
     "folder_deleted": "Папка удалена",
+    "member_banned": "Вы заблокированы и не можете писать сообщения",
     "folder_moved": "Диалог перемещён",
     "marked_read": "Прочитано",
     "message_pinned": "Сообщение закреплено",
@@ -177,7 +178,11 @@
     "owner_cannot_leave": "Владелец не может покинуть беседу",
     "left": "Вы покинули беседу",
     "invalid_title": "Укажите название беседы",
-    "updated": "Беседа обновлена"
+    "updated": "Беседа обновлена",
+    "invalid_image_type": "Допустимы JPEG, PNG, WebP, GIF",
+    "invalid_ban_reason": "Неверная причина блокировки",
+    "cannot_ban_target": "Нельзя заблокировать этого участника",
+    "member_unbanned": "Участник разблокирован"
   },
   "wallet": {
     "invalid_amount": "Сумма должна быть от 10 до 100 000 ₽",

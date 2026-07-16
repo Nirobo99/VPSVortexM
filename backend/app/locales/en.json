@@ -61,6 +61,7 @@
     "dialog_not_found": "Dialog not found",
     "folder_not_found": "Folder not found",
     "folder_deleted": "Folder deleted",
+    "member_banned": "You are blocked and cannot send messages",
     "folder_moved": "Dialog moved",
     "marked_read": "Marked as read",
     "message_pinned": "Message pinned",
@@ -150,7 +151,11 @@
     "owner_cannot_leave": "Owner cannot leave the group",
     "left": "You left the group",
     "invalid_title": "Group title is required",
-    "updated": "Group updated"
+    "updated": "Group updated",
+    "invalid_image_type": "Allowed: JPEG, PNG, WebP, GIF",
+    "invalid_ban_reason": "Invalid ban reason",
+    "cannot_ban_target": "Cannot ban this member",
+    "member_unbanned": "Member unbanned"
   },
   "wallet": {
     "invalid_amount": "Amount must be between 10 and 100,000 ₽",

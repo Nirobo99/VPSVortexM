@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +10,16 @@ from app.models.user import User
 from app.services.messaging_service import MessagingService
 from app.services.storage_service import StorageService
 from app.services.ws_manager import ws_manager
+
+# Fixed ban presets: reason code → (hours or None forever, display label for message)
+GROUP_BAN_PRESETS: dict[str, tuple[int | None, str]] = {
+    "spam": (12, "СПАМ"),
+    "ads": (24, "Не согласованная реклама"),
+    "disrespect": (
+        None,
+        "Не уважение к участникам и администрации а так же за многочисленые жалобы",
+    ),
+}
 
 
 class ConversationService:
@@ -295,3 +306,121 @@ class ConversationService:
         target.can_moderate = is_admin
         target.role = "admin" if is_admin else "member"
         await self.db.commit()
+
+    async def upload_avatar(self, user: User, dialog_id: uuid.UUID, content: bytes, content_type: str) -> dict:
+        participant = await self.messaging._require_participant(dialog_id, user.id)
+        if not participant.is_admin and participant.role != "owner":
+            raise ValueError("no_permission")
+        result = await self.db.execute(
+            select(Dialog).where(Dialog.id == dialog_id, Dialog.dialog_type == DialogType.GROUP)
+        )
+        dialog = result.scalar_one_or_none()
+        if not dialog:
+            raise ValueError("group_not_found")
+        if dialog.avatar_url:
+            StorageService.delete_by_url(dialog.avatar_url)
+        dialog.avatar_url = StorageService.upload_group_avatar(dialog.id, content, content_type)
+        await self.db.commit()
+        return await self.get_group(user, dialog_id)
+
+    async def list_members(self, user: User, dialog_id: uuid.UUID) -> list[dict]:
+        await self.messaging._require_participant(dialog_id, user.id)
+        result = await self.db.execute(
+            select(User, DialogParticipant)
+            .join(DialogParticipant, DialogParticipant.user_id == User.id)
+            .where(DialogParticipant.dialog_id == dialog_id)
+            .order_by(DialogParticipant.joined_at.asc())
+        )
+        out = []
+        now = datetime.now(timezone.utc)
+        for u, p in result.all():
+            banned, reason, until = self._ban_status(p, now)
+            out.append(
+                {
+                    "user_id": str(u.id),
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "avatar_url": StorageService.generate_presigned_url(u.avatar_url),
+                    "role": p.role,
+                    "is_admin": p.is_admin,
+                    "is_banned": banned,
+                    "ban_reason": reason,
+                    "banned_until": until.isoformat() if until else None,
+                }
+            )
+        return out
+
+    @staticmethod
+    def _ban_status(
+        participant: DialogParticipant, now: datetime | None = None
+    ) -> tuple[bool, str | None, datetime | None]:
+        reason = getattr(participant, "ban_reason", None)
+        until = getattr(participant, "banned_until", None)
+        if not reason:
+            return False, None, None
+        now = now or datetime.now(timezone.utc)
+        if until is not None and until <= now:
+            return False, None, None
+        return True, reason, until
+
+    @staticmethod
+    def ban_message(reason: str | None) -> str:
+        label = GROUP_BAN_PRESETS.get(reason or "", (None, reason or ""))[1]
+        return f"Вы заблокированы и не можете писать сообщения по причине {label}"
+
+    async def ban_member(self, user: User, dialog_id: uuid.UUID, target_user_id: uuid.UUID, reason: str) -> dict:
+        if reason not in GROUP_BAN_PRESETS:
+            raise ValueError("invalid_ban_reason")
+        actor = await self.messaging._require_participant(dialog_id, user.id)
+        if not actor.can_moderate and not actor.is_admin and actor.role != "owner":
+            raise ValueError("no_permission")
+        target = await self.messaging._get_participant(dialog_id, target_user_id)
+        if not target:
+            raise ValueError("not_member")
+        if target.role == "owner" or target.user_id == user.id:
+            raise ValueError("cannot_ban_target")
+        if target.is_admin and actor.role != "owner":
+            raise ValueError("no_permission")
+
+        hours, _label = GROUP_BAN_PRESETS[reason]
+        target.ban_reason = reason
+        target.can_post = False
+        if hours is None:
+            target.banned_until = None
+        else:
+            target.banned_until = datetime.now(timezone.utc) + timedelta(hours=hours)
+        await self.db.commit()
+        await ws_manager.publish(
+            str(target_user_id),
+            {
+                "type": "group_ban",
+                "data": {
+                    "dialog_id": str(dialog_id),
+                    "ban_reason": reason,
+                    "banned_until": target.banned_until.isoformat() if target.banned_until else None,
+                    "message": self.ban_message(reason),
+                },
+            },
+        )
+        return {
+            "user_id": str(target_user_id),
+            "ban_reason": reason,
+            "banned_until": target.banned_until.isoformat() if target.banned_until else None,
+            "message": self.ban_message(reason),
+        }
+
+    async def unban_member(self, user: User, dialog_id: uuid.UUID, target_user_id: uuid.UUID) -> None:
+        actor = await self.messaging._require_participant(dialog_id, user.id)
+        if not actor.can_moderate and not actor.is_admin and actor.role != "owner":
+            raise ValueError("no_permission")
+        target = await self.messaging._get_participant(dialog_id, target_user_id)
+        if not target:
+            raise ValueError("not_member")
+        target.ban_reason = None
+        target.banned_until = None
+        target.can_post = True
+        await self.db.commit()
+        await ws_manager.publish(
+            str(target_user_id),
+            {"type": "group_unban", "data": {"dialog_id": str(dialog_id)}},
+        )

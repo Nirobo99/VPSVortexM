@@ -21,6 +21,17 @@ from app.services.storage_service import StorageService
 from app.services.unread_service import UnreadService
 from app.services.ws_manager import ws_manager
 
+_GROUP_BAN_LABELS = {
+    "spam": "СПАМ",
+    "ads": "Не согласованная реклама",
+    "disrespect": "Не уважение к участникам и администрации а так же за многочисленые жалобы",
+}
+
+
+def _group_ban_message(reason: str | None) -> str:
+    label = _GROUP_BAN_LABELS.get(reason or "", reason or "")
+    return f"Вы заблокированы и не можете писать сообщения по причине {label}"
+
 
 class MessagingService:
     def __init__(self, db: AsyncSession):
@@ -219,14 +230,40 @@ class MessagingService:
                 "user": u,
                 "e2e_public_key": p.e2e_public_key,
                 "last_read_at": p.last_read_at.isoformat() if p.last_read_at else None,
+                "role": p.role,
+                "is_admin": p.is_admin,
+                "ban_reason": getattr(p, "ban_reason", None),
+                "banned_until": p.banned_until.isoformat() if getattr(p, "banned_until", None) else None,
             })
 
         unread = await UnreadService.get(str(user.id), str(dialog.id))
+        banned = False
+        ban_reason = getattr(participant, "ban_reason", None)
+        banned_until = getattr(participant, "banned_until", None)
+        if ban_reason:
+            now = datetime.now(timezone.utc)
+            if banned_until is not None and banned_until <= now:
+                participant.ban_reason = None
+                participant.banned_until = None
+                participant.can_post = True
+                await self.db.flush()
+                ban_reason = None
+                banned_until = None
+            else:
+                banned = True
         return {
             "dialog": dialog,
             "participant": participant,
             "participants": participants,
             "unread_count": unread,
+            "my_role": participant.role,
+            "can_moderate": bool(participant.can_moderate or participant.is_admin or participant.role == "owner"),
+            "is_banned": banned,
+            "ban_reason": ban_reason,
+            "banned_until": banned_until.isoformat() if banned_until else None,
+            "ban_message": (
+                _group_ban_message(ban_reason) if banned else None
+            ),
         }
 
     async def set_e2e_key(self, user: User, dialog_id: uuid.UUID, public_key: str) -> None:
@@ -419,6 +456,19 @@ class MessagingService:
         result = await self.db.execute(select(Dialog).where(Dialog.id == dialog_id))
         dialog = result.scalar_one()
         is_secret = dialog.dialog_type == DialogType.SECRET
+
+        if getattr(participant, "ban_reason", None):
+            until = getattr(participant, "banned_until", None)
+            now = datetime.now(timezone.utc)
+            if until is not None and until <= now:
+                participant.ban_reason = None
+                participant.banned_until = None
+                participant.can_post = True
+                await self.db.flush()
+            else:
+                raise ValueError("member_banned")
+        if dialog.dialog_type == DialogType.GROUP and not participant.can_post:
+            raise ValueError("member_banned")
 
         if is_secret and not content_e2e and message_type == MessageType.TEXT:
             raise ValueError("e2e_content_required")

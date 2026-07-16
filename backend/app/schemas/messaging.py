@@ -36,6 +36,11 @@ class DialogParticipantInfo(BaseModel):
     is_online: bool = False
     last_seen_at: str | None = None
     is_official_verified: bool = False
+    role: str | None = None
+    is_admin: bool = False
+    ban_reason: str | None = None
+    banned_until: str | None = None
+    is_banned: bool = False
 
 
 class DialogListItem(BaseModel):
@@ -60,12 +65,21 @@ class DialogDetailResponse(BaseModel):
     is_secret: bool
     is_group: bool = False
     title: str | None = None
+    description: str | None = None
+    avatar_url: str | None = None
+    owner_id: str | None = None
     member_count: int | None = None
     folder_id: str | None
     pinned_message_id: str | None
     auto_delete_seconds: int | None
     participants: list[DialogParticipantInfo]
     unread_count: int
+    my_role: str | None = None
+    can_moderate: bool = False
+    is_banned: bool = False
+    ban_reason: str | None = None
+    banned_until: str | None = None
+    ban_message: str | None = None
 
 
 class MoveDialogFolderRequest(BaseModel):

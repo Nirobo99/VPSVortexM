@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { api, type GroupInfo } from "@/lib/api";
-import { Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
+import { Avatar, Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
 
 export function GroupsPanel() {
   const { t } = useTranslation();
@@ -23,6 +23,9 @@ export function GroupsPanel() {
   const [editDescription, setEditDescription] = useState("");
   const [editPublic, setEditPublic] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     api.getGroups().then(setGroups).catch(() => {});
@@ -47,6 +50,13 @@ export function GroupsPanel() {
         .map((m) => m.trim())
         .filter(Boolean);
       const g = await api.createGroup(title, description, memberList, isPublic);
+      if (avatarFile) {
+        try {
+          await api.uploadGroupAvatar(g.id, avatarFile);
+        } catch {
+          /* avatar can be set later */
+        }
+      }
       router.push(`/chats/${g.id}`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
@@ -102,6 +112,26 @@ export function GroupsPanel() {
       {showForm && (
         <Card className="mb-4">
           <CardContent className="pt-4 space-y-3 max-w-md">
+            <div className="flex items-center gap-3">
+              <Avatar src={avatarPreview} name={title || "G"} className="h-14 w-14" />
+              <div>
+                <input
+                  ref={avatarRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setAvatarFile(file);
+                    if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+                    setAvatarPreview(file ? URL.createObjectURL(file) : null);
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={() => avatarRef.current?.click()}>
+                  {t("groups.changeAvatar")}
+                </Button>
+              </div>
+            </div>
             <div>
               <Label>{t("groups.name")}</Label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -161,12 +191,15 @@ export function GroupsPanel() {
           <Card key={g.id} className="hover:border-primary/50 transition-colors">
             <CardContent className="py-3 space-y-2">
               <div className="flex justify-between items-center gap-2">
-                <Link href={`/chats/${g.id}`} className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{g.title}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {g.member_count}/{g.member_limit} {t("groups.membersCount")}
-                    {g.is_public ? ` · ${t("groups.public")}` : ` · ${t("groups.private")}`}
-                  </p>
+                <Link href={`/chats/${g.id}`} className="min-w-0 flex-1 flex items-center gap-3">
+                  <Avatar src={g.avatar_url} name={g.title || "G"} className="h-10 w-10 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{g.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {g.member_count}/{g.member_limit} {t("groups.membersCount")}
+                      {g.is_public ? ` · ${t("groups.public")}` : ` · ${t("groups.private")}`}
+                    </p>
+                  </div>
                 </Link>
                 <div className="flex items-center gap-2 shrink-0">
                   {g.is_paid_extended && <span className="text-xs text-primary">PRO</span>}

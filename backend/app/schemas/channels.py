@@ -82,6 +82,29 @@ class SetAdminRequest(BaseModel):
     is_admin: bool
 
 
+class GroupBanRequest(BaseModel):
+    reason: str = Field(pattern="^(spam|ads|disrespect)$")
+
+
+class GroupMemberResponse(BaseModel):
+    user_id: str
+    username: str
+    display_name: str | None
+    avatar_url: str | None
+    role: str
+    is_admin: bool = False
+    is_banned: bool = False
+    ban_reason: str | None = None
+    banned_until: str | None = None
+
+
+class GroupBanResponse(BaseModel):
+    user_id: str
+    ban_reason: str
+    banned_until: str | None
+    message: str
+
+
 class TransferOwnershipRequest(BaseModel):
     user_id: str
 

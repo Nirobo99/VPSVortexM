@@ -156,11 +156,16 @@ export interface DialogParticipant {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
-  e2e_public_key: string | null;
+  e2e_public_key?: string | null;
   last_read_at?: string | null;
   is_online?: boolean;
   last_seen_at?: string | null;
   is_official_verified?: boolean;
+  role?: string | null;
+  is_admin?: boolean;
+  ban_reason?: string | null;
+  banned_until?: string | null;
+  is_banned?: boolean;
 }
 
 export interface DialogListItem {
@@ -377,12 +382,21 @@ export interface DialogDetail {
   is_secret: boolean;
   is_group: boolean;
   title: string | null;
+  description?: string | null;
+  avatar_url?: string | null;
+  owner_id?: string | null;
   member_count: number | null;
   folder_id: string | null;
   pinned_message_id: string | null;
   auto_delete_seconds: number | null;
   participants: DialogParticipant[];
   unread_count: number;
+  my_role?: string | null;
+  can_moderate?: boolean;
+  is_banned?: boolean;
+  ban_reason?: string | null;
+  banned_until?: string | null;
+  ban_message?: string | null;
 }
 
 export interface ChatMessage {
@@ -1112,6 +1126,45 @@ class ApiClient {
 
   leaveGroup(groupId: string) {
     return this.request<{ message: string }>(`/groups/${groupId}/leave`, { method: "POST" }, true);
+  }
+
+  async uploadGroupAvatar(groupId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await this.requestRaw(`/groups/${groupId}/avatar`, { method: "POST", body: form });
+    return res.json() as Promise<GroupInfo>;
+  }
+
+  getGroupMembers(groupId: string) {
+    return this.request<
+      {
+        user_id: string;
+        username: string;
+        display_name: string | null;
+        avatar_url: string | null;
+        role: string;
+        is_admin: boolean;
+        is_banned: boolean;
+        ban_reason: string | null;
+        banned_until: string | null;
+      }[]
+    >(`/groups/${groupId}/members`, {}, true);
+  }
+
+  banGroupMember(groupId: string, userId: string, reason: "spam" | "ads" | "disrespect") {
+    return this.request<{ user_id: string; ban_reason: string; banned_until: string | null; message: string }>(
+      `/groups/${groupId}/members/${userId}/ban`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      true
+    );
+  }
+
+  unbanGroupMember(groupId: string, userId: string) {
+    return this.request<{ message: string }>(
+      `/groups/${groupId}/members/${userId}/unban`,
+      { method: "POST" },
+      true
+    );
   }
 
   extendGroup(groupId: string) {

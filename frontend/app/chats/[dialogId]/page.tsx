@@ -17,7 +17,19 @@ import {
   getSharedAesKey,
 } from "@/lib/e2e";
 import { useCallActions } from "@/components/calls/CallProvider";
-import { Avatar, Button, Input } from "@/components/ui";
+import { Avatar, Button, Card, CardContent, Input, Label } from "@/components/ui";
+
+type GroupMember = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  is_admin: boolean;
+  is_banned: boolean;
+  ban_reason: string | null;
+  banned_until: string | null;
+};
 
 export default function ChatPage() {
   const { t } = useTranslation();
@@ -35,13 +47,24 @@ export default function ChatPage() {
   const [otherReadAt, setOtherReadAt] = useState<string | null>(null);
   const [otherOnline, setOtherOnline] = useState(false);
   const [chatAppearance, setChatAppearance] = useState("default");
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [banMessage, setBanMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
   const aesKeyRef = useRef<CryptoKey | null>(null);
 
   const other = dialog?.participants.find((p) => p.id !== user?.id);
   const audioCallsEnabled = user?.calls_audio_enabled !== false;
   const videoCallsEnabled = user?.calls_video_enabled !== false;
+  const canModerate = !!dialog?.can_moderate;
+  const isBanned = !!dialog?.is_banned;
 
   useEffect(() => {
     const fromUser = user?.chat_appearance;
@@ -91,6 +114,9 @@ export default function ChatPage() {
     const [d, m] = await Promise.all([api.getDialog(dialogId), api.getMessages(dialogId)]);
     setDialog(d);
     setMessages(m.messages);
+    setBanMessage(d.ban_message || null);
+    setEditTitle(d.title || "");
+    setEditDescription(d.description || "");
     const otherP = d.participants.find((p) => p.id !== user?.id);
     setOtherReadAt(otherP?.last_read_at || null);
     setOtherOnline(otherP?.is_online || false);
@@ -103,16 +129,46 @@ export default function ChatPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user && dialogId) load().catch(() => router.push("/messages?tab=chats"));
+    if (user && dialogId) {
+      load().catch(() =>
+        router.push(dialog?.is_group ? "/messages?tab=groups" : "/messages?tab=chats")
+      );
+    }
   }, [user, dialogId, load, router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
   const { startCall } = useCallActions();
 
   const { sendTyping } = useWebSocket((event) => {
+    if (event.type === "group_ban" && event.data) {
+      const data = event.data as { dialog_id?: string; message?: string };
+      if (data.dialog_id === dialogId) {
+        setBanMessage(data.message || t("groups.bannedGeneric"));
+        setDialog((prev) => (prev ? { ...prev, is_banned: true, ban_message: data.message || null } : prev));
+      }
+    }
+    if (event.type === "group_unban" && event.data) {
+      const data = event.data as { dialog_id?: string };
+      if (data.dialog_id === dialogId) {
+        setBanMessage(null);
+        setDialog((prev) =>
+          prev ? { ...prev, is_banned: false, ban_message: null, ban_reason: null } : prev
+        );
+      }
+    }
     if (event.type === "message_new" && event.data) {
       const msg = event.data as unknown as ChatMessage;
       if (msg.dialog_id === dialogId) {
@@ -218,7 +274,82 @@ export default function ChatPage() {
   const deleteChat = async () => {
     if (!confirm(t("chats.deleteConfirm"))) return;
     await api.hideDialog(dialogId);
-    router.push("/messages?tab=chats");
+    router.push(dialog?.is_group ? "/messages?tab=groups" : "/messages?tab=chats");
+  };
+
+  const backHref = dialog?.is_group ? "/messages?tab=groups" : "/messages?tab=chats";
+
+  const openMembers = async () => {
+    setHeaderMenuOpen(false);
+    setMembersOpen(true);
+    setSettingsOpen(false);
+    if (dialog?.is_group) {
+      try {
+        setGroupMembers(await api.getGroupMembers(dialogId));
+      } catch {
+        setGroupMembers([]);
+      }
+    }
+  };
+
+  const openSettings = () => {
+    setHeaderMenuOpen(false);
+    setSettingsOpen(true);
+    setMembersOpen(false);
+  };
+
+  const leaveGroup = async () => {
+    setHeaderMenuOpen(false);
+    try {
+      await api.leaveGroup(dialogId);
+      router.push("/messages?tab=groups");
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const saveGroupSettings = async () => {
+    try {
+      await api.updateGroup(dialogId, {
+        title: editTitle.trim(),
+        description: editDescription,
+      });
+      await load();
+      setSettingsOpen(false);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const onGroupAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await api.uploadGroupAvatar(dialogId, file);
+      await load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : t("auth.error"));
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const banMember = async (userId: string, reason: "spam" | "ads" | "disrespect") => {
+    try {
+      await api.banGroupMember(dialogId, userId, reason);
+      setGroupMembers(await api.getGroupMembers(dialogId));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    }
+  };
+
+  const unbanMember = async (userId: string) => {
+    try {
+      await api.unbanGroupMember(dialogId, userId);
+      setGroupMembers(await api.getGroupMembers(dialogId));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -246,13 +377,23 @@ export default function ChatPage() {
   return (
     <AppShell>
       <div className="flex flex-col h-[calc(100vh-8rem)] -mx-4 sm:-mx-6">
-        <header className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
-          <Link href="/messages?tab=chats" className="text-muted-foreground hover:text-foreground">←</Link>
+        <header className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2 border-b border-border bg-background/95 backdrop-blur shrink-0">
+          <Link
+            href={backHref}
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+          >
+            ←
+          </Link>
           {dialog.is_group ? (
-            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center shrink-0">👥</div>
+            <Avatar src={dialog.avatar_url || null} name={dialog.title || "G"} className="h-9 w-9 shrink-0" />
           ) : (
             other && (
-              <Avatar src={other.avatar_url} name={other.display_name || other.username} className="h-9 w-9" online={otherOnline} />
+              <Avatar
+                src={other.avatar_url}
+                name={other.display_name || other.username}
+                className="h-9 w-9"
+                online={otherOnline}
+              />
             )
           )}
           <div className="flex-1 min-w-0">
@@ -275,36 +416,193 @@ export default function ChatPage() {
               )}
             </p>
             {dialog.is_group && dialog.member_count != null && (
-              <p className="text-xs text-muted-foreground">{dialog.member_count} {t("groups.membersCount")}</p>
+              <p className="text-xs text-muted-foreground">
+                {dialog.member_count} {t("groups.membersCount")}
+              </p>
             )}
-            {presenceLabel() && <p className="text-xs text-primary">{presenceLabel()}</p>}
-          </div>
-          <div className="flex gap-1 shrink-0">
-            <Button variant="outline" size="sm" onClick={deleteChat} title={t("chats.deleteChat")}>
-              🗑
-            </Button>
-            {audioCallsEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => startCall(dialogId, "audio")}
-                title={t("calls.audioCall")}
-              >
-                📞
-              </Button>
-            )}
-            {videoCallsEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => startCall(dialogId, "video")}
-                title={t("calls.videoCall")}
-              >
-                📹
-              </Button>
+            {!dialog.is_group && presenceLabel() && (
+              <p className="text-xs text-primary">{presenceLabel()}</p>
             )}
           </div>
+          {dialog.is_group ? (
+            <div className="relative shrink-0" ref={headerMenuRef}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-2"
+                onClick={() => setHeaderMenuOpen((v) => !v)}
+              >
+                ⋮
+              </Button>
+              {headerMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-52 rounded-lg border border-border bg-background shadow-lg z-40 py-1">
+                  {canModerate && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                      onClick={openSettings}
+                    >
+                      {t("groups.settings")}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    onClick={openMembers}
+                  >
+                    {t("groups.members")}
+                  </button>
+                  {dialog.my_role !== "owner" && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-muted"
+                      onClick={leaveGroup}
+                    >
+                      {t("groups.leave")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex gap-1 shrink-0">
+              <Button variant="outline" size="sm" onClick={deleteChat} title={t("chats.deleteChat")}>
+                🗑
+              </Button>
+              {audioCallsEnabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startCall(dialogId, "audio")}
+                  title={t("calls.audioCall")}
+                >
+                  📞
+                </Button>
+              )}
+              {videoCallsEnabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => startCall(dialogId, "video")}
+                  title={t("calls.videoCall")}
+                >
+                  📹
+                </Button>
+              )}
+            </div>
+          )}
         </header>
+
+        {dialog.is_group && (settingsOpen || membersOpen) && (
+          <div className="overflow-y-auto max-h-[40%] border-b border-border shrink-0 px-3 py-3 space-y-3">
+            {settingsOpen && canModerate && (
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-medium">{t("groups.settings")}</h2>
+                    <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(false)}>
+                      {t("profile.cancel")}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Avatar
+                      src={dialog.avatar_url || null}
+                      name={dialog.title || "G"}
+                      className="h-14 w-14"
+                    />
+                    <div>
+                      <input
+                        ref={avatarRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={onGroupAvatar}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => avatarRef.current?.click()}
+                      >
+                        {t("groups.changeAvatar")}
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t("groups.name")}</Label>
+                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>{t("profile.bio")}</Label>
+                    <Input
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={saveGroupSettings} disabled={!editTitle.trim()}>
+                    {t("groups.saveSettings")}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {membersOpen && (
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-medium">{t("groups.members")}</h2>
+                    <Button variant="ghost" size="sm" onClick={() => setMembersOpen(false)}>
+                      {t("profile.cancel")}
+                    </Button>
+                  </div>
+                  {groupMembers.map((m) => (
+                    <div
+                      key={m.user_id}
+                      className="border border-border rounded-md px-3 py-2 space-y-2"
+                    >
+                      <div className="text-sm">
+                        <span className="font-medium">@{m.username}</span>
+                        <span className="text-xs text-muted-foreground ml-2">({m.role})</span>
+                        {m.is_banned && (
+                          <span className="ml-2 text-xs text-destructive">{t("groups.banned")}</span>
+                        )}
+                      </div>
+                      {canModerate && m.role !== "owner" && m.user_id !== user?.id && (
+                        <div className="flex flex-wrap gap-1">
+                          {m.is_banned ? (
+                            <Button size="sm" variant="outline" onClick={() => unbanMember(m.user_id)}>
+                              {t("groups.unban")}
+                            </Button>
+                          ) : (
+                            <>
+                              <Button size="sm" variant="outline" onClick={() => banMember(m.user_id, "spam")}>
+                                {t("groups.banSpam")}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => banMember(m.user_id, "ads")}>
+                                {t("groups.banAds")}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => banMember(m.user_id, "disrespect")}
+                              >
+                                {t("groups.banForever")}
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {groupMembers.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{t("groups.membersEmpty")}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         <div
           className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${
@@ -314,7 +612,8 @@ export default function ChatPage() {
                 ? "space-y-2"
                 : ""
           }`}
-        >          {messages.map((m) => {
+        >
+          {messages.map((m) => {
             const mine = m.sender_id === user.id;
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -415,28 +714,40 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {replyTo && (
-          <div className="px-4 py-1 bg-muted/50 flex items-center justify-between text-sm">
-            <span className="truncate">↩ {displayContent(replyTo)}</span>
-            <button onClick={() => setReplyTo(null)}>✕</button>
+        {isBanned ? (
+          <div className="px-4 py-4 border-t border-border shrink-0 bg-destructive/10">
+            <p className="text-sm text-center text-destructive">
+              {banMessage || dialog.ban_message || t("groups.bannedGeneric")}
+            </p>
           </div>
-        )}
+        ) : (
+          <>
+            {replyTo && (
+              <div className="px-4 py-1 bg-muted/50 flex items-center justify-between text-sm">
+                <span className="truncate">↩ {displayContent(replyTo)}</span>
+                <button onClick={() => setReplyTo(null)}>✕</button>
+              </div>
+            )}
 
-        <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0">
-          <input ref={fileRef} type="file" className="hidden" onChange={() => send()} />
-          <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()}>
-            📎
-          </Button>
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={t("chats.messagePlaceholder")}
-            className="flex-1"
-          />
-          <Button onClick={send} disabled={sending}>{sending ? "..." : t("chats.send")}</Button>
-        </div>
-        <p className="text-xs text-center text-muted-foreground pb-2">{t("chats.sendHint")}</p>
+            <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0">
+              <input ref={fileRef} type="file" className="hidden" onChange={() => send()} />
+              <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()}>
+                📎
+              </Button>
+              <Input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={t("chats.messagePlaceholder")}
+                className="flex-1"
+              />
+              <Button onClick={send} disabled={sending}>
+                {sending ? "..." : t("chats.send")}
+              </Button>
+            </div>
+            <p className="text-xs text-center text-muted-foreground pb-2">{t("chats.sendHint")}</p>
+          </>
+        )}
       </div>
     </AppShell>
   );
