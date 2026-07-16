@@ -352,6 +352,17 @@ class PaymentService:
         )
         self.db.add(txn)
         await self.db.commit()
+        try:
+            from app.services.support_notify_service import SupportNotifyService
+
+            until = user.invisible_until.isoformat() if user.invisible_until else ""
+            await SupportNotifyService(self.db).notify_purchase(
+                user,
+                "Подписка «Невидимка» на 30 дней",
+                f"Действует до: {until}\nПродление: https://vortexm.ru/wallet",
+            )
+        except Exception:
+            pass
         return {
             "balance": user.wallet_balance,
             "vmoney_balance": self._vmoney(user),

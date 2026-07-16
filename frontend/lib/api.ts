@@ -272,6 +272,7 @@ export interface GroupInfo {
   is_public?: boolean;
   is_member?: boolean;
   is_owner?: boolean;
+  is_admin?: boolean;
   created_at: string;
 }
 

@@ -278,6 +278,16 @@ class ChannelService:
             if owner:
                 owner.vmoney_balance = int(getattr(owner, "vmoney_balance", 0) or 0) + ch.subscription_price
             paid = True
+            try:
+                from app.services.support_notify_service import SupportNotifyService
+
+                await SupportNotifyService(self.db).notify_purchase(
+                    user,
+                    f"Подписка на канал «{ch.title}»",
+                    f"Списано: {ch.subscription_price} V.Money",
+                )
+            except Exception:
+                pass
 
         self.db.add(
             ChannelMember(

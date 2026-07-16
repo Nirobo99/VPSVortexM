@@ -18,6 +18,8 @@ import {
 } from "@/lib/e2e";
 import { useCallActions } from "@/components/calls/CallProvider";
 import { Avatar, Button, Card, CardContent, Input, Label } from "@/components/ui";
+import { EmojiPickerButton } from "@/components/ui/EmojiPickerButton";
+import { LinkifiedText } from "@/components/ui/LinkifiedText";
 
 type GroupMember = {
   user_id: string;
@@ -366,6 +368,12 @@ export default function ChatPage() {
     return m.content;
   };
 
+  const renderContent = (m: ChatMessage) => {
+    const raw = displayContent(m);
+    if (!raw || m.is_deleted || dialog?.is_secret) return raw;
+    return <LinkifiedText text={raw} />;
+  };
+
   if (loading || !user || !dialog) {
     return (
       <AppShell>
@@ -643,7 +651,7 @@ export default function ChatPage() {
                       📎 {m.file_name || t("chats.file")}
                     </a>
                   )}
-                  <p>{displayContent(m)}</p>
+                  <p className="whitespace-pre-wrap break-words">{renderContent(m)}</p>
                   {m.is_edited && <span className="text-xs opacity-60"> ({t("chats.edited")})</span>}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs opacity-60">
@@ -729,11 +737,12 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0">
+            <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0 items-end">
               <input ref={fileRef} type="file" className="hidden" onChange={() => send()} />
               <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()}>
                 📎
               </Button>
+              <EmojiPickerButton onPick={(emoji) => setText((prev) => prev + emoji)} title={t("chats.emoji")} />
               <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}

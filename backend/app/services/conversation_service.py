@@ -8,6 +8,8 @@ from app.models.channels import DEFAULT_MEMBER_LIMIT, EXTENDED_MEMBER_LIMIT, GRO
 from app.models.messaging import Dialog, DialogParticipant, DialogType
 from app.models.user import User
 from app.services.messaging_service import MessagingService
+from app.models.payments import TransactionType, WalletTransaction
+from app.services.support_notify_service import SupportNotifyService
 from app.services.storage_service import StorageService
 from app.services.ws_manager import ws_manager
 
@@ -220,8 +222,14 @@ class ConversationService:
             )
             member_count = count_res.scalar() or 0
         is_member = False
+        is_admin = False
         if viewer_id is not None:
-            is_member = await self.messaging._get_participant(dialog.id, viewer_id) is not None
+            participant = await self.messaging._get_participant(dialog.id, viewer_id)
+            is_member = participant is not None
+            is_admin = bool(
+                participant
+                and (participant.is_admin or participant.role == "owner" or dialog.owner_id == viewer_id)
+            )
         return {
             "id": str(dialog.id),
             "title": dialog.title,
@@ -234,6 +242,7 @@ class ConversationService:
             "is_public": bool(getattr(dialog, "is_public", False)),
             "is_member": is_member,
             "is_owner": bool(viewer_id and dialog.owner_id == viewer_id),
+            "is_admin": is_admin,
             "created_at": dialog.created_at.isoformat(),
         }
 
@@ -288,7 +297,24 @@ class ConversationService:
         user.vmoney_balance = vmoney - GROUP_EXTENSION_PRICE
         dialog.member_limit = EXTENDED_MEMBER_LIMIT
         dialog.is_paid_extended = True
+        self.db.add(
+            WalletTransaction(
+                user_id=user.id,
+                amount=-GROUP_EXTENSION_PRICE,
+                balance_after=user.wallet_balance,
+                transaction_type=TransactionType.SPEND.value,
+                description=f"Расширение беседы «{dialog.title or ''}»",
+            )
+        )
         await self.db.commit()
+        try:
+            await SupportNotifyService(self.db).notify_purchase(
+                user,
+                "Расширение беседы (лимит до 1000 участников)",
+                f"Беседа: {dialog.title or dialog.id}",
+            )
+        except Exception:
+            pass
         return await self.get_group(user, dialog_id)
 
     async def set_admin(self, user: User, dialog_id: uuid.UUID, target_user_id: uuid.UUID, is_admin: bool) -> None:

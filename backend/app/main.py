@@ -388,6 +388,16 @@ async def lifespan(app: FastAPI):
                     logger.exception("Soft schema repair step failed")
     except Exception:
         logger.exception("Soft schema repair skipped")
+
+    # Official support account for purchase / expiry notifications.
+    try:
+        from app.services.support_notify_service import SupportNotifyService
+
+        async with AsyncSessionLocal() as db:
+            await SupportNotifyService.ensure_support_user(db)
+    except Exception:
+        logger.exception("Support user bootstrap skipped")
+
     yield
     await close_redis()
 

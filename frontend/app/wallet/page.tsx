@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/hooks/useAuth";
-import { api, type WalletHistory } from "@/lib/api";
+import { api, type GroupInfo, type WalletHistory } from "@/lib/api";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from "@/components/ui";
 
 const HISTORY_LIMIT = 5;
 const SUPPORT_PROFILE_PATH = "/users/" + encodeURIComponent("VortexM Поддержка");
 const CONVERT_PRESETS = [200, 500, 1000, 2000];
 
-type Panel = "topup" | "transfer" | "convert" | null;
+type Panel = "topup" | "transfer" | "convert" | "extend" | null;
 
 export default function WalletPage() {
   const { t } = useTranslation();
@@ -26,6 +26,9 @@ export default function WalletPage() {
   const [converting, setConverting] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [prices, setPrices] = useState({ invisible_monthly: 199, group_extension: 500 });
+  const [manageGroups, setManageGroups] = useState<GroupInfo[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [extendingId, setExtendingId] = useState<string | null>(null);
 
   const load = () => api.getWalletHistory().then(setHistory).catch(() => {});
 
@@ -39,6 +42,39 @@ export default function WalletPage() {
       api.getWalletPrices().then(setPrices).catch(() => {});
     }
   }, [user]);
+
+  const openExtendPanel = async () => {
+    const next = panel === "extend" ? null : "extend";
+    setPanel(next);
+    if (next !== "extend") return;
+    setGroupsLoading(true);
+    try {
+      const groups = await api.getGroups();
+      setManageGroups(
+        groups.filter((g) => (g.is_owner || g.is_admin) && !g.is_paid_extended)
+      );
+    } catch {
+      setManageGroups([]);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  const extendGroup = async (groupId: string) => {
+    setExtendingId(groupId);
+    try {
+      await api.extendGroup(groupId);
+      await reload();
+      load();
+      setManageGroups((prev) => prev.filter((g) => g.id !== groupId));
+      setPanel(null);
+      alert(t("wallet.extendSuccess"));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setExtendingId(null);
+    }
+  };
 
   const transfer = async () => {
     try {
@@ -105,7 +141,7 @@ export default function WalletPage() {
       title: t("wallet.groupExtensionTitle"),
       description: t("wallet.groupExtensionHint"),
       price: `${prices.group_extension} VM`,
-      href: "/messages?tab=groups",
+      action: openExtendPanel,
       actionLabel: t("wallet.buy"),
     },
     {
@@ -264,6 +300,46 @@ export default function WalletPage() {
           </Card>
         )}
 
+        {panel === "extend" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{t("wallet.extendPickTitle")}</CardTitle>
+              <CardDescription>
+                {t("wallet.extendPickHint", { price: prices.group_extension })}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {groupsLoading && <p className="text-sm text-muted-foreground">...</p>}
+              {!groupsLoading && manageGroups.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t("wallet.extendNoGroups")}</p>
+              )}
+              {manageGroups.map((g) => (
+                <div
+                  key={g.id}
+                  className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{g.title || "—"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {g.member_count}/{g.member_limit} · {g.is_owner ? t("wallet.roleOwner") : t("wallet.roleAdmin")}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={extendingId === g.id || vmoney < prices.group_extension}
+                    onClick={() => extendGroup(g.id)}
+                  >
+                    {extendingId === g.id ? "..." : `${t("wallet.buy")} · ${prices.group_extension} VM`}
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" onClick={() => setPanel(null)}>
+                {t("profile.cancel")}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <section>
           <h2 className="text-lg font-medium mb-3">{t("wallet.history")}</h2>
           <div className="space-y-2">
@@ -309,7 +385,7 @@ export default function WalletPage() {
                 </CardHeader>
                 <CardContent className="mt-auto space-y-3">
                   <p className="text-sm font-semibold text-primary">{feature.price}</p>
-                  {feature.href ? (
+                  {"href" in feature && feature.href ? (
                     <Link href={feature.href} className="block">
                       <Button className="w-full" size="sm">
                         {feature.actionLabel}

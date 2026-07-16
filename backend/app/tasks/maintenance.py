@@ -36,6 +36,11 @@ def cleanup_expired_messages() -> dict:
     return {"deleted": deleted}
 
 
+@celery_app.task(name="app.tasks.maintenance.send_subscription_reminders")
+def send_subscription_reminders() -> dict:
+    return asyncio.run(_send_subscription_reminders())
+
+
 async def _cleanup_messages() -> int:
     from app.models.messaging import Message
 
@@ -49,3 +54,14 @@ async def _cleanup_messages() -> int:
         count = result.rowcount or 0
     await engine.dispose()
     return count
+
+
+async def _send_subscription_reminders() -> dict:
+    from app.services.support_notify_service import run_subscription_reminders
+
+    engine = create_async_engine(settings.database_url)
+    Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with Session() as db:
+        result = await run_subscription_reminders(db)
+    await engine.dispose()
+    return result

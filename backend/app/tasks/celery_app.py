@@ -26,6 +26,10 @@ celery_app.conf.update(
             "task": "app.tasks.maintenance.cleanup_expired_messages",
             "schedule": 300.0,
         },
+        "send-subscription-reminders": {
+            "task": "app.tasks.maintenance.send_subscription_reminders",
+            "schedule": 3600.0,
+        },
     },
 )
 

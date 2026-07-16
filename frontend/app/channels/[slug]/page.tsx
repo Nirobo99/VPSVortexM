@@ -17,6 +17,7 @@ import {
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
 import { VerifiedBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Avatar, Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
+import { EmojiPickerButton } from "@/components/ui/EmojiPickerButton";
 
 export default function ChannelPage() {
   const { t } = useTranslation();
@@ -888,6 +889,10 @@ export default function ChannelPage() {
               >
                 📎
               </Button>
+              <EmojiPickerButton
+                onPick={(emoji) => setPostText((prev) => prev + emoji)}
+                title={t("channels.emoji")}
+              />
               <Input
                 className="flex-1 min-w-0"
                 placeholder={t("channels.postPlaceholder")}

@@ -193,4 +193,5 @@ class GroupResponse(BaseModel):
     is_public: bool = False
     is_member: bool = False
     is_owner: bool = False
+    is_admin: bool = False
     created_at: str
