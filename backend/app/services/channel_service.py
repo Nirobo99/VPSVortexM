@@ -153,7 +153,13 @@ class ChannelService:
         my_role = member.role.value if member else None
         can_post = bool(
             is_owner
-            or (member and member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN))
+            or (
+                member
+                and (
+                    member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)
+                    or member.can_post
+                )
+            )
         )
         can_manage_members = bool(
             is_owner
@@ -550,7 +556,17 @@ class ChannelService:
             .limit(limit)
         )
         posts = posts_res.scalars().all()
-        return [await self._post_dict(p, user) for p in posts]
+        out: list[dict] = []
+        for p in posts:
+            try:
+                out.append(await self._post_dict(p, user))
+            except Exception:
+                # One bad/legacy row must not blank the whole channel feed.
+                try:
+                    await self.db.rollback()
+                except Exception:
+                    pass
+        return out
 
     async def unlock_post(self, user: User, post_id: uuid.UUID) -> dict:
         result = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post_id))
