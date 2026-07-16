@@ -151,6 +151,7 @@
     "updated": "Канал обновлён",
     "invalid_title": "Укажите название канала",
     "invalid_price": "Некорректная цена подписки",
+    "invalid_image_type": "Допустимы JPEG, PNG, WebP, GIF",
     "poll_options_required": "Добавьте минимум два варианта опроса",
     "already_verified": "Канал уже верифицирован",
     "request_pending": "Заявка на верификацию уже на рассмотрении",

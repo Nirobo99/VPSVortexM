@@ -234,6 +234,24 @@ class ChannelService:
         member = await self._get_member(ch.id, user.id)
         return self._channel_dict(ch, True, ch.owner_id == user.id, member)
 
+    async def upload_avatar(self, user: User, slug: str, content: bytes, content_type: str) -> dict:
+        result = await self.db.execute(select(Channel).where(Channel.slug == slug))
+        ch = result.scalar_one_or_none()
+        if not ch:
+            raise ValueError("channel_not_found")
+        member = await self._get_member(ch.id, user.id)
+        if ch.owner_id != user.id and (
+            not member or member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN)
+        ):
+            raise ValueError("no_permission")
+        if ch.avatar_url:
+            StorageService.delete_by_url(ch.avatar_url)
+        ch.avatar_url = StorageService.upload_channel_avatar(ch.id, content, content_type)
+        await self.db.commit()
+        await self.db.refresh(ch)
+        member = await self._get_member(ch.id, user.id)
+        return self._channel_dict(ch, True, ch.owner_id == user.id, member)
+
     async def join_channel(self, user: User, slug: str) -> dict:
         result = await self.db.execute(select(Channel).where(Channel.slug == slug))
         ch = result.scalar_one_or_none()

@@ -114,6 +114,25 @@ async def update_channel(
     return ChannelResponse(**data)
 
 
+@router.post("/{slug}/avatar", response_model=ChannelResponse)
+async def upload_channel_avatar(
+    slug: str,
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    lang = _lang(request)
+    content = await file.read()
+    service = ChannelService(db)
+    try:
+        data = await service.upload_avatar(user, slug, content, file.content_type or "image/jpeg")
+    except ValueError as e:
+        key = str(e)
+        raise HTTPException(status_code=400, detail=t(f"channels.{key}", lang))
+    return ChannelResponse(**data)
+
+
 @router.post("/{slug}/join", response_model=ChannelResponse)
 async def join_channel(
     slug: str,

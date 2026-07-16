@@ -996,6 +996,16 @@ class ApiClient {
     );
   }
 
+  async uploadChannelAvatar(slug: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await this.requestRaw(`/channels/${encodeURIComponent(slug)}/avatar`, {
+      method: "POST",
+      body: form,
+    });
+    return res.json() as Promise<ChannelInfo>;
+  }
+
   leaveChannel(slug: string) {
     return this.request<{ message: string }>(`/channels/${encodeURIComponent(slug)}/leave`, { method: "POST" }, true);
   }

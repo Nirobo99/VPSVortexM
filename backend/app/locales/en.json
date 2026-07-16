@@ -124,6 +124,7 @@
     "updated": "Channel updated",
     "invalid_title": "Channel title is required",
     "invalid_price": "Invalid subscription price",
+    "invalid_image_type": "Allowed: JPEG, PNG, WebP, GIF",
     "poll_options_required": "Add at least two poll options",
     "already_verified": "Channel is already verified",
     "request_pending": "Verification request is already pending",

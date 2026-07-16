@@ -148,6 +148,14 @@ class StorageService:
         return StorageService.upload_file(content, key, content_type)
 
     @staticmethod
+    def upload_channel_avatar(channel_id: uuid.UUID, content: bytes, content_type: str) -> str:
+        if content_type not in ALLOWED_IMAGE_TYPES:
+            raise ValueError("invalid_image_type")
+        ext = content_type.split("/")[-1].replace("jpeg", "jpg")
+        key = f"channels/{channel_id}/avatar/{uuid.uuid4()}.{ext}"
+        return StorageService.upload_file(content, key, content_type)
+
+    @staticmethod
     def upload_story_media(user_id: uuid.UUID, content: bytes, content_type: str) -> tuple[str, str]:
         if content_type in ALLOWED_IMAGE_TYPES:
             ext = content_type.split("/")[-1].replace("jpeg", "jpg")

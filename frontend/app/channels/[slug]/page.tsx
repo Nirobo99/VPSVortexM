@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
 import { VerifiedBadge } from "@/components/profile/DisplayNameWithBadge";
-import { Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
+import { Avatar, Button, Card, CardContent, Input, Label, Textarea } from "@/components/ui";
 
 export default function ChannelPage() {
   const { t } = useTranslation();
@@ -29,7 +29,11 @@ export default function ChannelPage() {
   const [verification, setVerification] = useState<ChannelVerificationRequest | null>(null);
   const [postText, setPostText] = useState("");
   const [pollOptions, setPollOptions] = useState("");
+  const [eventStartsAt, setEventStartsAt] = useState("");
+  const [eventLocation, setEventLocation] = useState("");
   const [postType, setPostType] = useState("text");
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [broadcastText, setBroadcastText] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
@@ -42,6 +46,13 @@ export default function ChannelPage() {
   const [verifySocial, setVerifySocial] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+  const typeMenuRef = useRef<HTMLDivElement>(null);
+  const feedRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
     try {
@@ -56,7 +67,7 @@ export default function ChannelPage() {
       } else {
         setVerification(null);
       }
-      if (ch.can_manage_members) {
+      if (ch.can_manage_members || ch.is_owner) {
         api.getChannelMembers(slug).then(setMembers).catch(() => setMembers([]));
       }
     } catch {
@@ -79,14 +90,36 @@ export default function ChannelPage() {
     if (user && slug) load();
   }, [user, slug]);
 
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (headerMenuRef.current && !headerMenuRef.current.contains(target)) {
+        setHeaderMenuOpen(false);
+      }
+      if (typeMenuRef.current && !typeMenuRef.current.contains(target)) {
+        setTypeMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = 0;
+    }
+  }, [posts.length]);
+
   const toggleJoin = async () => {
     if (!channel) return;
+    setHeaderMenuOpen(false);
     try {
       if (channel.is_member) {
         await api.leaveChannel(slug);
-      } else {
-        await api.joinChannel(slug);
+        router.push("/messages?tab=channels");
+        return;
       }
+      await api.joinChannel(slug);
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
@@ -95,10 +128,6 @@ export default function ChannelPage() {
 
   const publish = async () => {
     setMessage(null);
-    if (postType !== "poll" && !postText.trim()) {
-      setMessage(t("channels.emptyPost"));
-      return;
-    }
     if (postType === "poll") {
       const options = pollOptions
         .split("|")
@@ -108,10 +137,14 @@ export default function ChannelPage() {
         setMessage(t("channels.pollOptionsRequired"));
         return;
       }
+    } else if (!postText.trim() && !attachFile) {
+      setMessage(t("channels.emptyPost"));
+      return;
     }
+    setPublishing(true);
     try {
       const form = new FormData();
-      form.append("post_type", postType);
+      form.append("post_type", postType === "text" && attachFile ? "media" : postType);
       if (postText.trim()) form.append("content", postText.trim());
       if (postType === "poll") {
         const options = pollOptions
@@ -120,13 +153,25 @@ export default function ChannelPage() {
           .filter(Boolean);
         form.append("poll_options", options.join("|"));
       }
+      if (postType === "event") {
+        if (eventStartsAt) form.append("event_starts_at", new Date(eventStartsAt).toISOString());
+        if (eventLocation.trim()) form.append("event_location", eventLocation.trim());
+      }
+      if (attachFile) form.append("file", attachFile);
       const created = await api.createChannelPost(slug, form);
       setPostText("");
       setPollOptions("");
+      setEventStartsAt("");
+      setEventLocation("");
+      setAttachFile(null);
+      setPostType("text");
+      if (fileRef.current) fileRef.current.value = "";
       setPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
       await load();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -172,13 +217,27 @@ export default function ChannelPage() {
     }
   };
 
+  const onAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSaving(true);
+    try {
+      const updated = await api.uploadChannelAvatar(slug, file);
+      setChannel(updated);
+      setMessage(t("channels.avatarUpdated"));
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : t("auth.error"));
+    } finally {
+      setSaving(false);
+      e.target.value = "";
+    }
+  };
+
   const setMemberRole = async (userId: string, role: string) => {
     setMessage(null);
     try {
       await api.updateChannelMember(slug, userId, role);
-      const list = await api.getChannelMembers(slug);
-      setMembers(list);
-      setMessage(t("channels.memberUpdated"));
+      setMembers(await api.getChannelMembers(slug));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
     }
@@ -188,10 +247,9 @@ export default function ChannelPage() {
     if (!confirm(t("channels.transferConfirm"))) return;
     setMessage(null);
     try {
-      const updated = await api.transferChannelOwnership(slug, userId);
-      setChannel(updated);
-      setMessage(t("channels.ownershipTransferred"));
+      await api.transferChannelOwnership(slug, userId);
       await load();
+      setMessage(t("channels.ownershipTransferred"));
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
     }
@@ -215,9 +273,32 @@ export default function ChannelPage() {
     }
   };
 
+  const openMembers = () => {
+    setHeaderMenuOpen(false);
+    setMembersOpen(true);
+    setSettingsOpen(false);
+    if (!members.length) {
+      api.getChannelMembers(slug).then(setMembers).catch(() => {});
+    }
+  };
+
+  const openSettings = () => {
+    setHeaderMenuOpen(false);
+    setSettingsOpen(true);
+    setMembersOpen(false);
+  };
+
   const canManage = !!channel && (channel.is_owner || (user && channel.owner_id === user.id));
   const canPost = !!channel && (channel.can_post || canManage);
   const canManageMembers = !!channel?.can_manage_members || canManage;
+  const canEditSettings = canManage || canPost || channel?.my_role === "admin";
+
+  const postTypeLabel =
+    postType === "poll"
+      ? t("channels.postPoll")
+      : postType === "event"
+        ? t("channels.postEvent")
+        : t("channels.postText");
 
   if (loading || !channel) {
     return (
@@ -229,299 +310,486 @@ export default function ChannelPage() {
 
   return (
     <AppShell>
-      <div className="mb-6">
-        <Link href="/messages?tab=channels" className="text-sm text-muted-foreground hover:text-foreground">
-          ← {t("channels.title")}
-        </Link>
-        <h1 className="text-2xl font-semibold mt-2 flex items-center gap-2 min-w-0">
-          <span className="truncate">{channel.title}</span>
-          {channel.is_verified && <VerifiedBadge className="h-6 w-6 text-sm" />}
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          @{channel.slug} · {channel.subscriber_count} {t("channels.subscribers")}
-          {channel.my_role && ` · ${channel.my_role}`}
-        </p>
-        {channel.description && <p className="mt-2 text-sm">{channel.description}</p>}
-        {message && <p className="mt-2 text-sm text-muted-foreground">{message}</p>}
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant={channel.is_member ? "outline" : "default"} onClick={toggleJoin}>
-            {channel.is_member
-              ? t("channels.leave")
-              : channel.subscription_price > 0
-                ? `${t("channels.join")} (${channel.subscription_price} ₽)`
-                : t("channels.join")}
-          </Button>
-          {canManage && (
-            <Button variant="outline" onClick={() => setSettingsOpen((v) => !v)}>
-              {t("channels.settings")}
-            </Button>
-          )}
-          {canManageMembers && (
+      <div className="flex flex-col h-[calc(100vh-8rem)] -mx-4 sm:-mx-6">
+        {/* Sticky channel header */}
+        <header className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2 border-b border-border bg-background/95 backdrop-blur shrink-0">
+          <Link
+            href="/messages?tab=channels"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+            aria-label={t("channels.back")}
+          >
+            ←
+          </Link>
+          <Avatar src={channel.avatar_url} name={channel.title} className="h-9 w-9 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate flex items-center gap-1.5">
+              <span className="truncate">{channel.title}</span>
+              {channel.is_verified && <VerifiedBadge className="h-4 w-4 text-[10px]" />}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {channel.subscriber_count} {t("channels.subscribers")}
+            </p>
+          </div>
+          <div className="relative shrink-0" ref={headerMenuRef}>
             <Button
-              variant="outline"
-              onClick={() => {
-                setMembersOpen((v) => !v);
-                if (!members.length) {
-                  api.getChannelMembers(slug).then(setMembers).catch(() => {});
-                }
-              }}
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="px-2"
+              onClick={() => setHeaderMenuOpen((v) => !v)}
+              aria-label={t("channels.menu")}
             >
-              {t("channels.members")}
+              ⋮
             </Button>
-          )}
-        </div>
-      </div>
-
-      {settingsOpen && canManage && (
-        <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3 max-w-lg">
-            <h2 className="font-medium">{t("channels.settings")}</h2>
-            <div>
-              <Label>{t("channels.name")}</Label>
-              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-            </div>
-            <div>
-              <Label>{t("profile.bio")}</Label>
-              <Textarea
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label>{t("channels.visibility")}</Label>
-              <select
-                className="mt-1 w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={editVisibility}
-                onChange={(e) => setEditVisibility(e.target.value)}
-              >
-                <option value="public">{t("channels.public")}</option>
-                <option value="closed">{t("channels.closed")}</option>
-              </select>
-            </div>
-            <div>
-              <Label>{t("channels.subscriptionPrice")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={editPrice}
-                onChange={(e) => setEditPrice(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={saveSettings} disabled={saving || !editTitle.trim()}>
-                {t("channels.saveSettings")}
-              </Button>
-              <Button variant="ghost" onClick={() => setSettingsOpen(false)}>
-                {t("profile.cancel")}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {membersOpen && canManageMembers && (
-        <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3">
-            <h2 className="font-medium">{t("channels.members")}</h2>
-            {members.map((m) => (
-              <div
-                key={m.user_id}
-                className="flex flex-wrap items-center justify-between gap-2 border border-border rounded-md px-3 py-2"
-              >
-                <div className="text-sm">
-                  <span className="font-medium">@{m.username}</span>
-                  {m.display_name && (
-                    <span className="text-muted-foreground"> · {m.display_name}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground ml-2">({m.role})</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {m.role !== "owner" && (
-                    <>
-                      {m.role !== "admin" ? (
-                        <Button size="sm" variant="outline" onClick={() => setMemberRole(m.user_id, "admin")}>
-                          {t("channels.makeAdmin")}
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setMemberRole(m.user_id, "subscriber")}
-                        >
-                          {t("channels.makeSubscriber")}
-                        </Button>
-                      )}
-                      {channel.is_owner && (
-                        <Button size="sm" variant="destructive" onClick={() => transferOwnership(m.user_id)}>
-                          {t("channels.transferOwnership")}
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-            {members.length === 0 && (
-              <p className="text-sm text-muted-foreground">{t("channels.membersEmpty")}</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {channel.is_owner && !channel.is_verified && (
-        <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3 max-w-lg">
-            <h2 className="font-medium">{t("channels.requestVerification")}</h2>
-            {verification?.status === "pending" ? (
-              <p className="text-sm text-muted-foreground">{t("channels.verificationPending")}</p>
-            ) : verification?.status === "rejected" ? (
-              <p className="text-sm text-destructive">
-                {t("channels.verificationRejected")}
-                {verification.admin_note ? `: ${verification.admin_note}` : ""}
-              </p>
-            ) : null}
-            {(!verification || verification.status === "rejected") && (
-              <>
-                <div>
-                  <Label>{t("channels.verificationReason")}</Label>
-                  <Textarea
-                    value={verifyReason}
-                    onChange={(e) => setVerifyReason(e.target.value)}
-                    rows={3}
-                    placeholder={t("channels.verificationReasonHint")}
-                  />
-                </div>
-                <div>
-                  <Label>{t("channels.verificationWebsite")}</Label>
-                  <Input value={verifyWebsite} onChange={(e) => setVerifyWebsite(e.target.value)} />
-                </div>
-                <div>
-                  <Label>{t("channels.verificationSocial")}</Label>
-                  <Input value={verifySocial} onChange={(e) => setVerifySocial(e.target.value)} />
-                </div>
-                <Button onClick={submitVerification} disabled={verifyReason.trim().length < 20}>
-                  {t("channels.submitVerification")}
-                </Button>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {canPost && (
-        <Card className="mb-6">
-          <CardContent className="pt-4 space-y-3">
-            <select
-              className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
-              value={postType}
-              onChange={(e) => setPostType(e.target.value)}
-            >
-              <option value="text">{t("channels.postText")}</option>
-              <option value="poll">{t("channels.postPoll")}</option>
-              <option value="event">{t("channels.postEvent")}</option>
-            </select>
-            <Textarea
-              placeholder={t("channels.postPlaceholder")}
-              value={postText}
-              onChange={(e) => setPostText(e.target.value)}
-            />
-            {postType === "poll" && (
-              <Input
-                placeholder={t("channels.pollOptionsHint")}
-                value={pollOptions}
-                onChange={(e) => setPollOptions(e.target.value)}
-              />
-            )}
-            <Button type="button" onClick={publish}>
-              {t("channels.publish")}
-            </Button>
-            {canManage && (
-              <div className="border-t border-border pt-3">
-                <Input
-                  placeholder={t("channels.broadcastPlaceholder")}
-                  value={broadcastText}
-                  onChange={(e) => setBroadcastText(e.target.value)}
-                />
-                <Button type="button" variant="outline" className="mt-2" onClick={sendBroadcast}>
-                  @all {t("channels.broadcast")}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="space-y-4">
-        {posts.map((post) => (
-          <Card key={post.id} className={post.is_pinned ? "border-primary" : ""}>
-            <CardContent className="pt-4">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                <Link href={`/users/${post.author_username}`} className="hover:underline">
-                  @{post.author_username}
-                </Link>
-                {post.is_announcement && <span className="text-primary">📢</span>}
-                {post.is_pinned && <span>📌</span>}
-              </div>
-              {post.content_locked ? (
-                <div className="flex items-center gap-2">
-                  <span>
-                    🔒 {t("channels.lockedPost")} ({post.price})
-                  </span>
-                  <Button
-                    size="sm"
+            {headerMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-lg border border-border bg-background shadow-lg z-40 py-1">
+                {canEditSettings && (
+                  <button
                     type="button"
-                    onClick={() =>
-                      api
-                        .unlockPost(post.id)
-                        .then((updated) =>
-                          setPosts((prev) => prev.map((p) => (p.id === post.id ? updated : p)))
-                        )
-                        .catch((e) => setMessage(e instanceof Error ? e.message : t("auth.error")))
-                    }
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    onClick={openSettings}
                   >
-                    {t("channels.unlock")}
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  {post.content && <LinkifiedText text={post.content} />}
-                  {post.media_url && (
-                    <img src={post.media_url} alt="" className="mt-2 rounded-lg max-h-64 object-cover" />
-                  )}
-                  {post.poll_options.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {post.poll_options.map((opt) => {
-                        const selected = post.my_vote_option_id === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            className={`block w-full text-left px-3 py-2 rounded-md border text-sm ${
-                              selected
-                                ? "border-primary bg-primary/10"
-                                : "border-border hover:border-primary"
-                            }`}
-                            onClick={() => vote(post.id, opt.id)}
-                          >
-                            {opt.text} ({opt.votes_count})
-                            {selected ? ` · ${t("channels.yourVote")}` : ""}
-                          </button>
-                        );
-                      })}
+                    {t("channels.settings")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                  onClick={openMembers}
+                >
+                  {t("channels.members")}
+                </button>
+                {channel.is_member ? (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm text-destructive hover:bg-muted"
+                    onClick={toggleJoin}
+                  >
+                    {t("channels.leave")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                    onClick={toggleJoin}
+                  >
+                    {channel.subscription_price > 0
+                      ? `${t("channels.join")} (${channel.subscription_price} ₽)`
+                      : t("channels.join")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </header>
+
+        {message && (
+          <p className="px-4 py-2 text-sm text-muted-foreground border-b border-border shrink-0">{message}</p>
+        )}
+
+        {/* Panels: settings / members / verification */}
+        {(settingsOpen || membersOpen || (channel.is_owner && !channel.is_verified)) && (
+          <div className="overflow-y-auto max-h-[40%] border-b border-border shrink-0 px-3 py-3 space-y-3">
+            {settingsOpen && canEditSettings && (
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-medium">{t("channels.settings")}</h2>
+                    <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(false)}>
+                      {t("profile.cancel")}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Avatar src={channel.avatar_url} name={channel.title} className="h-14 w-14" />
+                    <div>
+                      <input
+                        ref={avatarRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={onAvatarChange}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={saving}
+                        onClick={() => avatarRef.current?.click()}
+                      >
+                        {t("channels.changeAvatar")}
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>{t("channels.name")}</Label>
+                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>{t("profile.bio")}</Label>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("channels.visibility")}</Label>
+                    <select
+                      className="mt-1 w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={editVisibility}
+                      onChange={(e) => setEditVisibility(e.target.value)}
+                    >
+                      <option value="public">{t("channels.public")}</option>
+                      <option value="closed">{t("channels.closed")}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label>{t("channels.subscriptionPrice")}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                    />
+                  </div>
+                  {canManage && (
+                    <div className="border-t border-border pt-3 space-y-2">
+                      <Label>{t("channels.broadcast")}</Label>
+                      <Input
+                        placeholder={t("channels.broadcastPlaceholder")}
+                        value={broadcastText}
+                        onChange={(e) => setBroadcastText(e.target.value)}
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={sendBroadcast}>
+                        @all
+                      </Button>
                     </div>
                   )}
-                  {post.event && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      📅 {new Date(post.event.starts_at).toLocaleString()}
-                      {post.event.location && ` · ${post.event.location}`}
-                    </p>
+                  <Button onClick={saveSettings} disabled={saving || !editTitle.trim()}>
+                    {t("channels.saveSettings")}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {membersOpen && (
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="font-medium">{t("channels.members")}</h2>
+                    <Button variant="ghost" size="sm" onClick={() => setMembersOpen(false)}>
+                      {t("profile.cancel")}
+                    </Button>
+                  </div>
+                  {members.map((m) => (
+                    <div
+                      key={m.user_id}
+                      className="flex flex-wrap items-center justify-between gap-2 border border-border rounded-md px-3 py-2"
+                    >
+                      <div className="text-sm">
+                        <span className="font-medium">@{m.username}</span>
+                        {m.display_name && (
+                          <span className="text-muted-foreground"> · {m.display_name}</span>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-2">({m.role})</span>
+                      </div>
+                      {canManageMembers && m.role !== "owner" && (
+                        <div className="flex flex-wrap gap-2">
+                          {m.role !== "admin" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setMemberRole(m.user_id, "admin")}
+                            >
+                              {t("channels.makeAdmin")}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setMemberRole(m.user_id, "subscriber")}
+                            >
+                              {t("channels.makeSubscriber")}
+                            </Button>
+                          )}
+                          {channel.is_owner && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => transferOwnership(m.user_id)}
+                            >
+                              {t("channels.transferOwnership")}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {members.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{t("channels.membersEmpty")}</p>
                   )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {channel.is_owner && !channel.is_verified && (
+              <Card>
+                <CardContent className="pt-4 space-y-3">
+                  <h2 className="font-medium">{t("channels.requestVerification")}</h2>
+                  {verification?.status === "pending" ? (
+                    <p className="text-sm text-muted-foreground">{t("channels.verificationPending")}</p>
+                  ) : verification?.status === "rejected" ? (
+                    <p className="text-sm text-destructive">
+                      {t("channels.verificationRejected")}
+                      {verification.admin_note ? `: ${verification.admin_note}` : ""}
+                    </p>
+                  ) : null}
+                  {(!verification || verification.status === "rejected") && (
+                    <>
+                      <Textarea
+                        value={verifyReason}
+                        onChange={(e) => setVerifyReason(e.target.value)}
+                        rows={2}
+                        placeholder={t("channels.verificationReasonHint")}
+                      />
+                      <Input
+                        placeholder={t("channels.verificationWebsite")}
+                        value={verifyWebsite}
+                        onChange={(e) => setVerifyWebsite(e.target.value)}
+                      />
+                      <Input
+                        placeholder={t("channels.verificationSocial")}
+                        value={verifySocial}
+                        onChange={(e) => setVerifySocial(e.target.value)}
+                      />
+                      <Button
+                        onClick={submitVerification}
+                        disabled={verifyReason.trim().length < 20}
+                      >
+                        {t("channels.submitVerification")}
+                      </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Posts feed */}
+        <div ref={feedRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+          {posts.map((post) => (
+            <Card key={post.id} className={post.is_pinned ? "border-primary" : ""}>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                  <Link href={`/users/${post.author_username}`} className="hover:underline">
+                    @{post.author_username}
+                  </Link>
+                  {post.is_announcement && <span className="text-primary">📢</span>}
+                  {post.is_pinned && <span>📌</span>}
+                </div>
+                {post.content_locked ? (
+                  <div className="flex items-center gap-2">
+                    <span>
+                      🔒 {t("channels.lockedPost")} ({post.price})
+                    </span>
+                    <Button
+                      size="sm"
+                      type="button"
+                      onClick={() =>
+                        api
+                          .unlockPost(post.id)
+                          .then((updated) =>
+                            setPosts((prev) => prev.map((p) => (p.id === post.id ? updated : p)))
+                          )
+                          .catch((e) => setMessage(e instanceof Error ? e.message : t("auth.error")))
+                      }
+                    >
+                      {t("channels.unlock")}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {post.content && <LinkifiedText text={post.content} />}
+                    {post.media_url && (
+                      <img
+                        src={post.media_url}
+                        alt=""
+                        className="mt-2 rounded-lg max-h-64 object-cover"
+                      />
+                    )}
+                    {post.poll_options.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {post.poll_options.map((opt) => {
+                          const selected = post.my_vote_option_id === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              className={`block w-full text-left px-3 py-2 rounded-md border text-sm ${
+                                selected
+                                  ? "border-primary bg-primary/10"
+                                  : "border-border hover:border-primary"
+                              }`}
+                              onClick={() => vote(post.id, opt.id)}
+                            >
+                              {opt.text} ({opt.votes_count})
+                              {selected ? ` · ${t("channels.yourVote")}` : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {post.event && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        📅 {new Date(post.event.starts_at).toLocaleString()}
+                        {post.event.location && ` · ${post.event.location}`}
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {posts.length === 0 && (
+            <p className="text-center text-muted-foreground py-8 text-sm">{t("channels.noPosts")}</p>
+          )}
+        </div>
+
+        {/* Composer like chat */}
+        {canPost ? (
+          <div className="border-t border-border bg-background shrink-0 px-2 py-2 space-y-2">
+            {(postType === "poll" || postType === "event" || attachFile) && (
+              <div className="px-1 space-y-2">
+                {postType !== "text" && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("channels.postingAs")}: {postTypeLabel}
+                  </p>
+                )}
+                {postType === "poll" && (
+                  <Input
+                    placeholder={t("channels.pollOptionsHint")}
+                    value={pollOptions}
+                    onChange={(e) => setPollOptions(e.target.value)}
+                  />
+                )}
+                {postType === "event" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      type="datetime-local"
+                      value={eventStartsAt}
+                      onChange={(e) => setEventStartsAt(e.target.value)}
+                      className="flex-1 min-w-[160px]"
+                    />
+                    <Input
+                      placeholder={t("channels.eventLocation")}
+                      value={eventLocation}
+                      onChange={(e) => setEventLocation(e.target.value)}
+                      className="flex-1 min-w-[120px]"
+                    />
+                  </div>
+                )}
+                {attachFile && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="truncate">{attachFile.name}</span>
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setAttachFile(null);
+                        if (fileRef.current) fileRef.current.value = "";
+                      }}
+                    >
+                      {t("profile.cancel")}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex items-end gap-1.5">
+              <div className="relative shrink-0" ref={typeMenuRef}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="px-2 h-10"
+                  onClick={() => setTypeMenuOpen((v) => !v)}
+                  title={t("channels.postType")}
+                >
+                  ⚙
+                </Button>
+                {typeMenuOpen && (
+                  <div className="absolute left-0 bottom-full mb-1 w-44 rounded-lg border border-border bg-background shadow-lg z-40 py-1">
+                    {[
+                      { value: "text", label: t("channels.postText") },
+                      { value: "poll", label: t("channels.postPoll") },
+                      { value: "event", label: t("channels.postEvent") },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${
+                          postType === opt.value ? "text-primary font-medium" : ""
+                        }`}
+                        onClick={() => {
+                          setPostType(opt.value);
+                          setTypeMenuOpen(false);
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,video/*,.pdf,.doc,.docx"
+                className="hidden"
+                onChange={(e) => setAttachFile(e.target.files?.[0] || null)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="px-2 h-10 shrink-0"
+                onClick={() => fileRef.current?.click()}
+                title={t("channels.attach")}
+              >
+                📎
+              </Button>
+              <Input
+                className="flex-1 min-w-0"
+                placeholder={t("channels.postPlaceholder")}
+                value={postText}
+                onChange={(e) => setPostText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    publish();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                className="h-10 shrink-0"
+                disabled={publishing}
+                onClick={publish}
+              >
+                {t("channels.send")}
+              </Button>
+            </div>
+          </div>
+        ) : !channel.is_member ? (
+          <div className="border-t border-border px-4 py-3 shrink-0">
+            <Button className="w-full" onClick={toggleJoin}>
+              {channel.subscription_price > 0
+                ? `${t("channels.join")} (${channel.subscription_price} ₽)`
+                : t("channels.join")}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );
