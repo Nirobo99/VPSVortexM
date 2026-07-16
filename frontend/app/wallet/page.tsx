@@ -155,9 +155,9 @@ export default function WalletPage() {
   ];
 
   const legalLinks = [
-    { slug: "rules", label: t("wallet.legalTerms") },
+    { slug: "terms", label: t("wallet.legalTerms") },
     { slug: "about", label: t("wallet.legalAbout") },
-    { slug: "rules", label: t("wallet.legalPrivacy") },
+    { slug: "privacy", label: t("wallet.legalPrivacy") },
   ];
 
   return (

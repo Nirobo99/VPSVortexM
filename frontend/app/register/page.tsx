@@ -73,6 +73,17 @@ export default function RegisterPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "..." : t("auth.registerButton")}
             </Button>
+            <p className="text-xs text-center text-muted-foreground leading-relaxed">
+              Регистрируясь, вы принимаете{" "}
+              <Link href="/pages/terms" className="text-primary hover:underline" target="_blank">
+                Пользовательское соглашение
+              </Link>{" "}
+              и{" "}
+              <Link href="/pages/privacy" className="text-primary hover:underline" target="_blank">
+                Политику конфиденциальности
+              </Link>
+              .
+            </p>
           </form>
           <p className="mt-4 text-sm text-center text-muted-foreground">
             {t("auth.hasAccount")}{" "}
