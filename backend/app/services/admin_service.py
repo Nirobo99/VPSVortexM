@@ -68,7 +68,7 @@ class AdminService:
         )
         revenue = await self.db.scalar(
             select(func.coalesce(func.sum(WalletTransaction.amount), 0)).where(
-                WalletTransaction.transaction_type == TransactionType.TOPUP
+                WalletTransaction.transaction_type == TransactionType.TOPUP.value
             )
         )
         return {

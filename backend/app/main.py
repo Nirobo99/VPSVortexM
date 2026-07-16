@@ -240,6 +240,22 @@ async def lifespan(app: FastAPI):
         BEGIN
           IF EXISTS (
             SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'wallet_transactions'
+              AND column_name = 'transaction_type'
+              AND udt_name = 'transactiontype'
+          ) THEN
+            ALTER TABLE wallet_transactions ALTER COLUMN transaction_type DROP DEFAULT;
+            ALTER TABLE wallet_transactions
+              ALTER COLUMN transaction_type TYPE varchar(16)
+              USING lower(transaction_type::text);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
             WHERE table_name = 'channel_posts'
               AND column_name = 'post_type'
               AND udt_name = 'posttype'

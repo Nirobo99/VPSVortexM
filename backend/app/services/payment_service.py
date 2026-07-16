@@ -39,24 +39,52 @@ class PaymentService:
         }
 
     def _transaction_dict(self, t: WalletTransaction) -> dict:
+        raw_type = t.transaction_type
+        type_value = raw_type.value if hasattr(raw_type, "value") else str(raw_type)
         return {
             "id": str(t.id),
             "amount": t.amount,
             "balance_after": t.balance_after,
-            "transaction_type": t.transaction_type.value,
+            "transaction_type": type_value,
             "description": t.description,
             "created_at": t.created_at.isoformat() if t.created_at else "",
         }
 
+    async def _ensure_vmoney_column(self) -> None:
+        from sqlalchemy import text
+
+        await self.db.execute(
+            text(
+                """
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS vmoney_balance integer NOT NULL DEFAULT 0
+                """
+            )
+        )
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+
     async def get_balance(self, user: User) -> dict:
-        await self.db.refresh(user)
+        try:
+            await self.db.refresh(user)
+        except Exception:
+            await self.db.rollback()
+            await self._ensure_vmoney_column()
+            await self.db.refresh(user)
         return {
-            "balance": user.wallet_balance,
+            "balance": int(user.wallet_balance or 0),
             "vmoney_balance": self._vmoney(user),
         }
 
     async def get_history(self, user: User, limit: int = 50) -> dict:
-        await self.db.refresh(user)
+        try:
+            await self.db.refresh(user)
+        except Exception:
+            await self.db.rollback()
+            await self._ensure_vmoney_column()
+            await self.db.refresh(user)
         payments_result = await self.db.execute(
             select(WalletPayment)
             .where(WalletPayment.user_id == user.id)
@@ -70,7 +98,7 @@ class PaymentService:
             .limit(limit)
         )
         return {
-            "balance": user.wallet_balance,
+            "balance": int(user.wallet_balance or 0),
             "vmoney_balance": self._vmoney(user),
             "payments": [self._payment_dict(p) for p in payments_result.scalars().all()],
             "transactions": [self._transaction_dict(t) for t in tx_result.scalars().all()],
@@ -78,30 +106,57 @@ class PaymentService:
 
     async def convert_to_vmoney(self, user: User, rubles: int) -> dict:
         """Exchange rubles → V.Money at 2 ₽ = 1 VM. Amount must be even and ≥ 2."""
+        from sqlalchemy import text
+
         if rubles < MIN_CONVERT_RUB or rubles > MAX_CONVERT_RUB:
             raise ValueError("invalid_amount")
         if rubles % VMONEY_RUB_PER_UNIT != 0:
             raise ValueError("amount_must_be_even")
-        await self.db.refresh(user)
-        if user.wallet_balance < rubles:
-            raise ValueError("insufficient_balance")
+
+        await self._ensure_vmoney_column()
         vmoney = rubles // VMONEY_RUB_PER_UNIT
-        user.wallet_balance -= rubles
-        user.vmoney_balance = self._vmoney(user) + vmoney
+
+        result = await self.db.execute(
+            text(
+                """
+                UPDATE users
+                SET wallet_balance = wallet_balance - :rubles,
+                    vmoney_balance = COALESCE(vmoney_balance, 0) + :vmoney
+                WHERE id = :uid
+                  AND wallet_balance >= :rubles
+                RETURNING wallet_balance, COALESCE(vmoney_balance, 0)
+                """
+            ),
+            {"rubles": rubles, "vmoney": vmoney, "uid": user.id},
+        )
+        row = result.first()
+        if not row:
+            raise ValueError("insufficient_balance")
+
+        new_balance = int(row[0])
+        new_vmoney = int(row[1])
+
         self.db.add(
             WalletTransaction(
                 user_id=user.id,
                 amount=-rubles,
-                balance_after=user.wallet_balance,
-                transaction_type=TransactionType.SPEND,
-                description=f"Обмен на V.Money (+{vmoney} VM)",
+                balance_after=new_balance,
+                transaction_type=TransactionType.SPEND.value,
+                description=f"Convert to V.Money (+{vmoney} VM)",
             )
         )
         await self.db.commit()
-        await self.db.refresh(user)
+
+        # Keep in-memory user in sync for this request.
+        user.wallet_balance = new_balance
+        try:
+            user.vmoney_balance = new_vmoney
+        except Exception:
+            pass
+
         return {
-            "balance": user.wallet_balance,
-            "vmoney_balance": self._vmoney(user),
+            "balance": new_balance,
+            "vmoney_balance": new_vmoney,
             "converted_rubles": rubles,
             "received_vmoney": vmoney,
             "rate": VMONEY_RUB_PER_UNIT,
@@ -237,7 +292,7 @@ class PaymentService:
             payment_id=payment.id,
             amount=payment.amount,
             balance_after=user.wallet_balance,
-            transaction_type=TransactionType.TOPUP,
+            transaction_type=TransactionType.TOPUP.value,
             description=payment.description,
         )
         self.db.add(txn)
@@ -262,14 +317,14 @@ class PaymentService:
             user_id=sender.id,
             amount=-amount,
             balance_after=sender.wallet_balance,
-            transaction_type=TransactionType.SPEND,
+            transaction_type=TransactionType.SPEND.value,
             description=f"Перевод @{recipient.username}",
         )
         recipient_txn = WalletTransaction(
             user_id=recipient.id,
             amount=amount,
             balance_after=recipient.wallet_balance,
-            transaction_type=TransactionType.TOPUP,
+            transaction_type=TransactionType.TOPUP.value,
             description=f"Перевод от @{sender.username}",
         )
         self.db.add(sender_txn)
@@ -292,7 +347,7 @@ class PaymentService:
             user_id=user.id,
             amount=-price,
             balance_after=user.wallet_balance,
-            transaction_type=TransactionType.SPEND,
+            transaction_type=TransactionType.SPEND.value,
             description="Подписка «Невидимка» (30 дней, V.Money)",
         )
         self.db.add(txn)

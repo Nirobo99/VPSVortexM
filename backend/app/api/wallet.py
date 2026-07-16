@@ -54,7 +54,18 @@ async def convert_to_vmoney(
     try:
         data = await service.convert_to_vmoney(user, body.amount)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=t(f"wallet.{e}", lang))
+        key = str(e.args[0]) if e.args else "invalid_amount"
+        raise HTTPException(status_code=400, detail=t(f"wallet.{key}", lang))
+    except Exception:
+        # Ensure column then retry once — covers missed migration/soft-repair.
+        try:
+            await service._ensure_vmoney_column()
+            data = await service.convert_to_vmoney(user, body.amount)
+        except ValueError as e:
+            key = str(e.args[0]) if e.args else "invalid_amount"
+            raise HTTPException(status_code=400, detail=t(f"wallet.{key}", lang))
+        except Exception:
+            raise HTTPException(status_code=500, detail=t("errors.internal", lang))
     return ConvertToVmoneyResponse(**data)
 
 

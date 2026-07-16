@@ -70,19 +70,19 @@ class AdminPanelService(AdminService):
 
         revenue_today = await self.db.scalar(
             select(func.coalesce(func.sum(WalletTransaction.amount), 0)).where(
-                WalletTransaction.transaction_type == TransactionType.TOPUP,
+                WalletTransaction.transaction_type == TransactionType.TOPUP.value,
                 WalletTransaction.created_at >= today_start,
             )
         ) or 0
         revenue_week = await self.db.scalar(
             select(func.coalesce(func.sum(WalletTransaction.amount), 0)).where(
-                WalletTransaction.transaction_type == TransactionType.TOPUP,
+                WalletTransaction.transaction_type == TransactionType.TOPUP.value,
                 WalletTransaction.created_at >= week_start,
             )
         ) or 0
         revenue_total = await self.db.scalar(
             select(func.coalesce(func.sum(WalletTransaction.amount), 0)).where(
-                WalletTransaction.transaction_type == TransactionType.TOPUP,
+                WalletTransaction.transaction_type == TransactionType.TOPUP.value,
             )
         ) or 0
 
@@ -162,7 +162,7 @@ class AdminPanelService(AdminService):
             {
                 "id": str(t.id),
                 "amount": t.amount,
-                "type": t.transaction_type.value,
+                "type": t.transaction_type.value if hasattr(t.transaction_type, "value") else str(t.transaction_type),
                 "balance_after": t.balance_after,
                 "created_at": t.created_at.isoformat() if t.created_at else "",
             }
@@ -266,7 +266,7 @@ class AdminPanelService(AdminService):
                 "user_id": str(t.user_id),
                 "username": user.scalar_one_or_none(),
                 "amount": t.amount,
-                "type": t.transaction_type.value,
+                "type": t.transaction_type.value if hasattr(t.transaction_type, "value") else str(t.transaction_type),
                 "balance_after": t.balance_after,
                 "description": t.description,
                 "created_at": t.created_at.isoformat() if t.created_at else "",
@@ -285,7 +285,7 @@ class AdminPanelService(AdminService):
             user_id=user.id,
             amount=amount,
             balance_after=user.wallet_balance,
-            transaction_type=TransactionType.TOPUP if amount > 0 else TransactionType.SPEND,
+            transaction_type=TransactionType.TOPUP.value if amount > 0 else TransactionType.SPEND.value,
             description=f"Admin adjust: {reason}",
         )
         self.db.add(txn)
