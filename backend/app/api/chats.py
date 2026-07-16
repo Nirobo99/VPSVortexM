@@ -164,8 +164,16 @@ async def create_dialog(
     other = result.scalar_one_or_none()
     if not other:
         raise HTTPException(status_code=404, detail=t("profile.user_not_found", lang))
+
+    is_secret = bool(body.is_secret or getattr(user, "prefer_encrypted_chats", False))
+    auto_delete = body.auto_delete_seconds
+    if auto_delete is None:
+        hours = getattr(user, "chat_auto_clear_hours", None)
+        if hours:
+            auto_delete = int(hours) * 3600
+
     try:
-        dialog = await service.get_or_create_dialog(user, other, body.is_secret, body.auto_delete_seconds)
+        dialog = await service.get_or_create_dialog(user, other, is_secret, auto_delete)
         detail = await service.get_dialog_detail(user, dialog.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=t(f"chats.{e}", lang))

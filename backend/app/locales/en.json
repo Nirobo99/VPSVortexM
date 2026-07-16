@@ -90,6 +90,8 @@
     "call_not_active": "Call is not active",
     "initiator_cannot_decline": "Initiator cannot decline own call",
     "invalid_call_type": "Invalid call type",
+    "audio_disabled": "Audio calls are disabled in settings",
+    "video_disabled": "Video calls are disabled in settings",
     "only_initiator_can_record": "Only initiator can start recording",
     "already_recording": "Already recording",
     "not_recording": "Not recording",

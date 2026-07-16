@@ -92,6 +92,15 @@ class UserMe(BaseModel):
     locale: str
     role: str
     has_admin_panel: bool = False
+    notify_messages: bool = True
+    notify_calls: bool = True
+    notify_channels: bool = True
+    notify_sound: bool = True
+    chat_auto_clear_hours: int | None = None
+    chat_appearance: str = "default"
+    prefer_encrypted_chats: bool = False
+    calls_audio_enabled: bool = True
+    calls_video_enabled: bool = True
 
     model_config = {"from_attributes": True}
 

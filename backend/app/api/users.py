@@ -65,6 +65,10 @@ async def update_my_profile(
         birth_date=body.birth_date,
         profile_visibility=visibility,
         locale=body.locale,
+        fields=body.model_dump(
+            exclude_unset=True,
+            exclude={"display_name", "bio", "birth_date", "profile_visibility", "locale"},
+        ),
     )
     return ProfileService.user_to_dict(user, full=True)
 

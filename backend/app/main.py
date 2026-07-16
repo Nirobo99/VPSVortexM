@@ -137,6 +137,69 @@ async def lifespan(app: FastAPI):
           END IF;
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'users'
+          ) THEN
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'notify_messages'
+            ) THEN
+              ALTER TABLE users ADD COLUMN notify_messages boolean NOT NULL DEFAULT true;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'notify_calls'
+            ) THEN
+              ALTER TABLE users ADD COLUMN notify_calls boolean NOT NULL DEFAULT true;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'notify_channels'
+            ) THEN
+              ALTER TABLE users ADD COLUMN notify_channels boolean NOT NULL DEFAULT true;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'notify_sound'
+            ) THEN
+              ALTER TABLE users ADD COLUMN notify_sound boolean NOT NULL DEFAULT true;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'chat_auto_clear_hours'
+            ) THEN
+              ALTER TABLE users ADD COLUMN chat_auto_clear_hours integer;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'chat_appearance'
+            ) THEN
+              ALTER TABLE users ADD COLUMN chat_appearance varchar(32) NOT NULL DEFAULT 'default';
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'prefer_encrypted_chats'
+            ) THEN
+              ALTER TABLE users ADD COLUMN prefer_encrypted_chats boolean NOT NULL DEFAULT false;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'calls_audio_enabled'
+            ) THEN
+              ALTER TABLE users ADD COLUMN calls_audio_enabled boolean NOT NULL DEFAULT true;
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns
+              WHERE table_name = 'users' AND column_name = 'calls_video_enabled'
+            ) THEN
+              ALTER TABLE users ADD COLUMN calls_video_enabled boolean NOT NULL DEFAULT true;
+            END IF;
+          END IF;
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text

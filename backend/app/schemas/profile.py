@@ -18,6 +18,34 @@ class ProfileUpdateRequest(BaseModel):
     birth_date: datetime | None = None
     profile_visibility: str | None = None
     locale: str | None = Field(None, max_length=5)
+    notify_messages: bool | None = None
+    notify_calls: bool | None = None
+    notify_channels: bool | None = None
+    notify_sound: bool | None = None
+    chat_auto_clear_hours: int | None = None
+    chat_appearance: str | None = Field(None, max_length=32)
+    prefer_encrypted_chats: bool | None = None
+    calls_audio_enabled: bool | None = None
+    calls_video_enabled: bool | None = None
+
+    @field_validator("chat_auto_clear_hours")
+    @classmethod
+    def validate_auto_clear(cls, v: int | None) -> int | None:
+        if v is None:
+            return v
+        if v not in (24, 48, 72, 168):
+            raise ValueError("chat_auto_clear_hours must be 24, 48, 72, or 168")
+        return v
+
+    @field_validator("chat_appearance")
+    @classmethod
+    def validate_appearance(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        allowed = {"default", "compact", "bubbles"}
+        if v not in allowed:
+            raise ValueError("invalid chat_appearance")
+        return v
 
 
 class ThemeUpdateRequest(BaseModel):
@@ -143,6 +171,15 @@ class ProfileResponse(BaseModel):
     role: str
     invisible_until: str | None = None
     invisible_fake_last_seen: str | None = None
+    notify_messages: bool = True
+    notify_calls: bool = True
+    notify_channels: bool = True
+    notify_sound: bool = True
+    chat_auto_clear_hours: int | None = None
+    chat_appearance: str = "default"
+    prefer_encrypted_chats: bool = False
+    calls_audio_enabled: bool = True
+    calls_video_enabled: bool = True
 
 
 class PublicProfileResponse(BaseModel):

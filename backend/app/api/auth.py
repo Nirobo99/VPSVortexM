@@ -208,6 +208,15 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         locale=user.locale,
         role=user.role.value,
         has_admin_panel=admin_row.scalar_one_or_none() is not None,
+        notify_messages=bool(getattr(user, "notify_messages", True)),
+        notify_calls=bool(getattr(user, "notify_calls", True)),
+        notify_channels=bool(getattr(user, "notify_channels", True)),
+        notify_sound=bool(getattr(user, "notify_sound", True)),
+        chat_auto_clear_hours=getattr(user, "chat_auto_clear_hours", None),
+        chat_appearance=getattr(user, "chat_appearance", None) or "default",
+        prefer_encrypted_chats=bool(getattr(user, "prefer_encrypted_chats", False)),
+        calls_audio_enabled=bool(getattr(user, "calls_audio_enabled", True)),
+        calls_video_enabled=bool(getattr(user, "calls_video_enabled", True)),
     )
 
 

@@ -33,6 +33,8 @@ class ProfileService:
         birth_date: datetime | None = None,
         profile_visibility: ProfileVisibility | None = None,
         locale: str | None = None,
+        *,
+        fields: dict | None = None,
     ) -> User:
         if display_name is not None:
             user.display_name = display_name
@@ -44,6 +46,23 @@ class ProfileService:
             user.profile_visibility = profile_visibility
         if locale is not None:
             user.locale = locale
+
+        prefs = fields or {}
+        for key in (
+            "notify_messages",
+            "notify_calls",
+            "notify_channels",
+            "notify_sound",
+            "chat_appearance",
+            "prefer_encrypted_chats",
+            "calls_audio_enabled",
+            "calls_video_enabled",
+        ):
+            if key in prefs:
+                setattr(user, key, prefs[key])
+        if "chat_auto_clear_hours" in prefs:
+            user.chat_auto_clear_hours = prefs["chat_auto_clear_hours"]
+
         await self.gamification.add_points(user, "profile_update")
         return user
 
@@ -416,6 +435,15 @@ class ProfileService:
             "level": user.level,
             "locale": user.locale,
             "role": user.role.value,
+            "notify_messages": bool(getattr(user, "notify_messages", True)),
+            "notify_calls": bool(getattr(user, "notify_calls", True)),
+            "notify_channels": bool(getattr(user, "notify_channels", True)),
+            "notify_sound": bool(getattr(user, "notify_sound", True)),
+            "chat_auto_clear_hours": getattr(user, "chat_auto_clear_hours", None),
+            "chat_appearance": getattr(user, "chat_appearance", None) or "default",
+            "prefer_encrypted_chats": bool(getattr(user, "prefer_encrypted_chats", False)),
+            "calls_audio_enabled": bool(getattr(user, "calls_audio_enabled", True)),
+            "calls_video_enabled": bool(getattr(user, "calls_video_enabled", True)),
         }
         if full:
             data["email"] = user.email

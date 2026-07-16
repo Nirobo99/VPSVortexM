@@ -57,6 +57,10 @@ async def create_call(
         ctype = CallType(body.call_type)
     except ValueError:
         raise HTTPException(status_code=400, detail=t("calls.invalid_call_type", lang))
+    if ctype == CallType.AUDIO and not getattr(user, "calls_audio_enabled", True):
+        raise HTTPException(status_code=403, detail=t("calls.audio_disabled", lang))
+    if ctype == CallType.VIDEO and not getattr(user, "calls_video_enabled", True):
+        raise HTTPException(status_code=403, detail=t("calls.video_disabled", lang))
     try:
         data = await service.create_call(user, uuid.UUID(body.dialog_id), ctype, body.is_group)
     except ValueError as e:
