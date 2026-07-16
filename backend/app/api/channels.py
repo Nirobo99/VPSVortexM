@@ -211,8 +211,28 @@ async def create_post(
         media_content = await file.read()
         media_type = file.content_type or "application/octet-stream"
 
-    options = [o.strip() for o in poll_options.split("|")] if poll_options else None
-    event_dt = datetime.fromisoformat(event_starts_at) if event_starts_at else None
+    options = None
+    if poll_options:
+        raw = poll_options.strip()
+        if raw.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    options = [str(o).strip() for o in parsed if str(o).strip()]
+            except Exception:
+                options = None
+        if options is None:
+            options = [o.strip() for o in raw.split("|") if o.strip()]
+
+    event_dt = None
+    if event_starts_at:
+        raw_dt = event_starts_at.strip().replace("Z", "+00:00")
+        try:
+            event_dt = datetime.fromisoformat(raw_dt)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=t("channels.invalid_event_time", lang))
 
     try:
         data = await service.create_post(
@@ -231,7 +251,13 @@ async def create_post(
             event_location,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=t(f"channels.{e}", lang))
+        key = str(e.args[0]) if e.args else "invalid_post_type"
+        # Map legacy keys to locale entries.
+        if key == "not_a_member":
+            key = "not_member"
+        if key in ("file_too_large", "invalid_file_type", "invalid_image_type"):
+            raise HTTPException(status_code=400, detail=t(f"channels.{key}", lang))
+        raise HTTPException(status_code=400, detail=t(f"channels.{key}", lang))
     return PostResponse(**data)
 
 

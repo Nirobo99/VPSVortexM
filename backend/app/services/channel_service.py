@@ -324,8 +324,11 @@ class ChannelService:
         # Owner can always publish even if membership row is missing/out of sync.
         if not is_owner:
             if not member:
-                raise ValueError("not_a_member")
-            if member.role not in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN):
+                raise ValueError("not_member")
+            can_publish = member.role in (ChannelMemberRole.OWNER, ChannelMemberRole.ADMIN) or bool(
+                member.can_post
+            )
+            if not can_publish:
                 raise ValueError("no_permission")
         elif not member:
             member = ChannelMember(
@@ -337,6 +340,8 @@ class ChannelService:
             self.db.add(member)
             await self.db.flush()
             ch.subscriber_count = max(ch.subscriber_count, 1)
+
+        ptype = post_type.value if isinstance(post_type, PostType) else str(post_type)
         media_url = None
         if media_content and media_type:
             media_url = StorageService.upload_file(
@@ -344,13 +349,13 @@ class ChannelService:
             )
 
         cleaned_options = [o.strip() for o in (poll_options or []) if o and o.strip()]
-        if post_type in (PostType.POLL, PostType.QUIZ) and len(cleaned_options) < 2:
+        if ptype in (PostType.POLL.value, PostType.QUIZ.value) and len(cleaned_options) < 2:
             raise ValueError("poll_options_required")
 
         post = ChannelPost(
             channel_id=ch.id,
             author_id=user.id,
-            post_type=post_type,
+            post_type=ptype,
             content=content,
             media_url=media_url,
             media_type=media_type,
@@ -361,24 +366,28 @@ class ChannelService:
         self.db.add(post)
         await self.db.flush()
 
-        if post_type in (PostType.POLL, PostType.QUIZ):
+        if ptype in (PostType.POLL.value, PostType.QUIZ.value):
             for i, opt_text in enumerate(cleaned_options):
                 self.db.add(
                     PollOption(
                         post_id=post.id,
                         text=opt_text,
-                        is_correct=(post_type == PostType.QUIZ and quiz_correct_index == i),
+                        is_correct=(ptype == PostType.QUIZ.value and quiz_correct_index == i),
                     )
                 )
 
-        if post_type == PostType.EVENT and event_starts_at:
+        if ptype == PostType.EVENT.value and event_starts_at:
             self.db.add(PostEvent(post_id=post.id, starts_at=event_starts_at, location=event_location))
 
         await self.db.commit()
         await self.db.refresh(post)
 
         if is_announcement:
-            await self._notify_subscribers(ch, user, f"📢 {content[:100] if content else 'Объявление'}")
+            try:
+                await self._notify_subscribers(ch, user, f"📢 {content[:100] if content else 'Объявление'}")
+            except Exception:
+                # Notifications must not fail the publish response.
+                pass
 
         return await self._post_dict(post, user)
 
@@ -401,18 +410,45 @@ class ChannelService:
         )
         return result.scalar_one_or_none() is not None
 
-    async def _post_dict(self, post: ChannelPost, viewer: User | None) -> dict:
-        result = await self.db.execute(
-            select(ChannelPost)
-            .where(ChannelPost.id == post.id)
-            .options(
-                selectinload(ChannelPost.poll_options),
-                selectinload(ChannelPost.event),
-                selectinload(ChannelPost.reactions),
-                selectinload(ChannelPost.comments),
+    @staticmethod
+    def _post_type_value(post_type: object) -> str:
+        if hasattr(post_type, "value"):
+            return str(getattr(post_type, "value"))
+        return str(post_type or PostType.TEXT.value).lower()
+
+    async def _count_post_comments(self, post_id: uuid.UUID) -> int:
+        try:
+            result = await self.db.execute(
+                select(func.count()).select_from(PostComment).where(PostComment.post_id == post_id)
             )
-        )
-        post = result.scalar_one()
+            return int(result.scalar() or 0)
+        except Exception:
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return 0
+
+    async def _post_dict(self, post: ChannelPost, viewer: User | None) -> dict:
+        # Load satellites defensively: a missing related table must not abort publish/list.
+        try:
+            result = await self.db.execute(
+                select(ChannelPost)
+                .where(ChannelPost.id == post.id)
+                .options(
+                    selectinload(ChannelPost.poll_options),
+                    selectinload(ChannelPost.event),
+                    selectinload(ChannelPost.reactions),
+                )
+            )
+            post = result.scalar_one()
+        except Exception:
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            result = await self.db.execute(select(ChannelPost).where(ChannelPost.id == post.id))
+            post = result.scalar_one()
 
         unlocked = True
         if post.is_paid and viewer:
@@ -427,49 +463,75 @@ class ChannelService:
         author_res = await self.db.execute(select(User).where(User.id == post.author_id))
         author = author_res.scalar_one()
 
+        ptype = self._post_type_value(post.post_type)
         my_vote_option_id = None
-        if viewer and post.post_type in (PostType.POLL, PostType.QUIZ):
-            vote_res = await self.db.execute(
-                select(PollVote).where(PollVote.post_id == post.id, PollVote.user_id == viewer.id)
-            )
-            vote = vote_res.scalar_one_or_none()
-            if vote:
-                my_vote_option_id = str(vote.option_id)
+        if viewer and ptype in (PostType.POLL.value, PostType.QUIZ.value):
+            try:
+                vote_res = await self.db.execute(
+                    select(PollVote).where(PollVote.post_id == post.id, PollVote.user_id == viewer.id)
+                )
+                vote = vote_res.scalar_one_or_none()
+                if vote:
+                    my_vote_option_id = str(vote.option_id)
+            except Exception:
+                try:
+                    await self.db.rollback()
+                except Exception:
+                    pass
+
+        poll_options = []
+        try:
+            for o in post.poll_options or []:
+                poll_options.append(
+                    {
+                        "id": str(o.id),
+                        "text": o.text,
+                        "votes_count": o.votes_count,
+                        "is_correct": o.is_correct if ptype == PostType.QUIZ.value and unlocked else False,
+                    }
+                )
+        except Exception:
+            poll_options = []
+
+        event = None
+        try:
+            if post.event:
+                event = {
+                    "starts_at": post.event.starts_at.isoformat(),
+                    "ends_at": post.event.ends_at.isoformat() if post.event.ends_at else None,
+                    "location": post.event.location,
+                }
+        except Exception:
+            event = None
+
+        reactions = []
+        try:
+            reactions = [{"emoji": r.emoji, "user_id": str(r.user_id)} for r in (post.reactions or [])]
+        except Exception:
+            reactions = []
+
+        created_at = post.created_at.isoformat() if post.created_at else datetime.now(timezone.utc).isoformat()
 
         return {
             "id": str(post.id),
             "channel_id": str(post.channel_id),
             "author_id": str(post.author_id),
             "author_username": author.username,
-            "post_type": post.post_type.value if hasattr(post.post_type, "value") else str(post.post_type),
+            "post_type": ptype,
             "content": post.content if unlocked else None,
-            "content_locked": post.is_paid and not unlocked,
+            "content_locked": bool(post.is_paid and not unlocked),
             "price": post.price if post.is_paid else 0,
             "media_url": StorageService.generate_presigned_url(post.media_url) if unlocked else None,
             "media_type": post.media_type,
             "is_pinned": post.is_pinned,
             "is_announcement": post.is_announcement,
             "views_count": post.views_count,
-            "poll_options": [
-                {
-                    "id": str(o.id),
-                    "text": o.text,
-                    "votes_count": o.votes_count,
-                    "is_correct": o.is_correct if post.post_type == PostType.QUIZ and unlocked else False,
-                }
-                for o in (post.poll_options or [])
-            ],
+            "poll_options": poll_options,
             "my_vote_option_id": my_vote_option_id,
-            "event": {
-                "starts_at": post.event.starts_at.isoformat(),
-                "ends_at": post.event.ends_at.isoformat() if post.event.ends_at else None,
-                "location": post.event.location,
-            }
-            if post.event
-            else None,
-            "reactions": [{"emoji": r.emoji, "user_id": str(r.user_id)} for r in post.reactions],
-            "comments_count": len(post.comments),
-            "created_at": post.created_at.isoformat(),
+            "event": event,
+            "reactions": reactions,
+            "comments_count": await self._count_post_comments(post.id),
+            "created_at": created_at,
         }
 
     async def list_posts(self, slug: str, user: User | None, limit: int = 30) -> list[dict]:
@@ -512,11 +574,8 @@ class ChannelService:
         post = post_res.scalar_one_or_none()
         if not post:
             raise ValueError("post_not_found")
-        post_type = post.post_type.value if hasattr(post.post_type, "value") else str(post.post_type)
-        if post_type not in ("poll", "quiz", PostType.POLL.value, PostType.QUIZ.value) and post.post_type not in (
-            PostType.POLL,
-            PostType.QUIZ,
-        ):
+        post_type = self._post_type_value(post.post_type)
+        if post_type not in (PostType.POLL.value, PostType.QUIZ.value):
             raise ValueError("not_poll")
         await self._require_member(post.channel_id, user.id)
 

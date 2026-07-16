@@ -111,10 +111,8 @@ class ChannelPost(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     channel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("channels.id", ondelete="CASCADE"), index=True)
     author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    post_type: Mapped[PostType] = mapped_column(
-        Enum(PostType, values_callable=lambda x: [e.value for e in x]),
-        default=PostType.TEXT,
-    )
+    # Store as varchar (not PG enum) — same hardening as profile_posts.media_type.
+    post_type: Mapped[str] = mapped_column(String(16), default=PostType.TEXT.value)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(64), nullable=True)

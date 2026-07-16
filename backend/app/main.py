@@ -221,6 +221,129 @@ async def lifespan(app: FastAPI):
           END IF;
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'channel_posts'
+              AND column_name = 'post_type'
+              AND udt_name = 'posttype'
+          ) THEN
+            ALTER TABLE channel_posts ALTER COLUMN post_type DROP DEFAULT;
+            ALTER TABLE channel_posts
+              ALTER COLUMN post_type TYPE varchar(16)
+              USING lower(post_type::text);
+            ALTER TABLE channel_posts ALTER COLUMN post_type SET DEFAULT 'text';
+            DROP TYPE IF EXISTS posttype;
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channels'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_posts'
+          ) THEN
+            CREATE TABLE channel_posts (
+              id uuid PRIMARY KEY,
+              channel_id uuid NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+              author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              post_type varchar(16) NOT NULL DEFAULT 'text',
+              content text,
+              media_url varchar(512),
+              media_type varchar(64),
+              is_paid boolean NOT NULL DEFAULT false,
+              price integer NOT NULL DEFAULT 0,
+              is_pinned boolean NOT NULL DEFAULT false,
+              is_announcement boolean NOT NULL DEFAULT false,
+              views_count integer NOT NULL DEFAULT 0,
+              created_at timestamptz NOT NULL DEFAULT now(),
+              edited_at timestamptz
+            );
+            CREATE INDEX IF NOT EXISTS ix_channel_posts_channel_id ON channel_posts (channel_id);
+            CREATE INDEX IF NOT EXISTS ix_channel_posts_created_at ON channel_posts (created_at);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_posts'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'post_comments'
+          ) THEN
+            CREATE TABLE post_comments (
+              id uuid PRIMARY KEY,
+              post_id uuid NOT NULL REFERENCES channel_posts(id) ON DELETE CASCADE,
+              author_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              content text NOT NULL,
+              created_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_post_comments_post_id ON post_comments (post_id);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_posts'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'post_reactions'
+          ) THEN
+            CREATE TABLE post_reactions (
+              id uuid PRIMARY KEY,
+              post_id uuid NOT NULL REFERENCES channel_posts(id) ON DELETE CASCADE,
+              user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              emoji varchar(16) NOT NULL,
+              created_at timestamptz NOT NULL DEFAULT now(),
+              CONSTRAINT uq_post_reaction UNIQUE (post_id, user_id, emoji)
+            );
+            CREATE INDEX IF NOT EXISTS ix_post_reactions_post_id ON post_reactions (post_id);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_posts'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'poll_options'
+          ) THEN
+            CREATE TABLE poll_options (
+              id uuid PRIMARY KEY,
+              post_id uuid NOT NULL REFERENCES channel_posts(id) ON DELETE CASCADE,
+              text varchar(256) NOT NULL,
+              votes_count integer NOT NULL DEFAULT 0,
+              is_correct boolean NOT NULL DEFAULT false
+            );
+            CREATE INDEX IF NOT EXISTS ix_poll_options_post_id ON poll_options (post_id);
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'channel_posts'
+          ) AND NOT EXISTS (
+            SELECT 1 FROM information_schema.tables WHERE table_name = 'post_events'
+          ) THEN
+            CREATE TABLE post_events (
+              id uuid PRIMARY KEY,
+              post_id uuid NOT NULL REFERENCES channel_posts(id) ON DELETE CASCADE UNIQUE,
+              starts_at timestamptz NOT NULL,
+              ends_at timestamptz,
+              location varchar(256)
+            );
+          END IF;
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text
