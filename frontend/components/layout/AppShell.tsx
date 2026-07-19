@@ -121,6 +121,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard" className="text-xl font-bold text-primary">
             {t("app.name")}
           </Link>
+          <Link
+            href="/marketplace"
+            className={cn(
+              "hidden sm:inline-flex items-center gap-1.5 text-sm font-medium px-2.5 py-1.5 rounded-lg transition-colors",
+              navActive(pathname, "/marketplace")
+                ? "bg-pink-500/15 text-pink-500"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+          >
+            <span aria-hidden>🛍️</span>
+            {t("nav.marketplace")}
+          </Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link

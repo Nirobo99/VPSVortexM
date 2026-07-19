@@ -43,9 +43,9 @@ export default function AdminStickersPage() {
 
   const load = async () => {
     try {
-      if (tab === "moderation") setPending(await adminApi.stickerModeration("pending"));
-      if (tab === "official") setOfficial(await adminApi.stickerOfficial());
-      if (tab === "stats") setStats(await adminApi.stickerStats());
+      if (tab === "moderation") setPending((await adminApi.stickerModeration("pending")) as Pack[]);
+      if (tab === "official") setOfficial((await adminApi.stickerOfficial()) as Pack[]);
+      if (tab === "stats") setStats((await adminApi.stickerStats()) as Stats);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : t("auth.error"));
     }

@@ -269,7 +269,22 @@ export const adminApi = {
   },
   stickerModeration(status?: string) {
     const q = status ? `?status=${encodeURIComponent(status)}` : "";
-    return adminRequest<Record<string, unknown>[]>(`/admin/stickers/moderation${q}`);
+    return adminRequest<
+      {
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+        is_official: boolean;
+        is_active: boolean;
+        cover_image_url: string | null;
+        purchase_count: number;
+        creator_username?: string | null;
+        moderation_status?: string | null;
+        rejection_reason?: string | null;
+        stickers?: { id: string; image_url: string | null }[];
+      }[]
+    >(`/admin/stickers/moderation${q}`);
   },
   approveStickerPack(packId: string) {
     return adminRequest(`/admin/stickers/moderation/${packId}/approve`, { method: "POST" });
@@ -281,7 +296,22 @@ export const adminApi = {
     });
   },
   stickerOfficial() {
-    return adminRequest<Record<string, unknown>[]>("/admin/stickers/official");
+    return adminRequest<
+      {
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+        is_official: boolean;
+        is_active: boolean;
+        cover_image_url: string | null;
+        purchase_count: number;
+        creator_username?: string | null;
+        moderation_status?: string | null;
+        rejection_reason?: string | null;
+        stickers?: { id: string; image_url: string | null }[];
+      }[]
+    >("/admin/stickers/official");
   },
   async createOfficialStickerPack(form: FormData) {
     return adminRequest("/admin/stickers/official", { method: "POST", body: form });
@@ -291,7 +321,16 @@ export const adminApi = {
   },
   stickerStats() {
     return adminRequest<{
-      top_packs: Record<string, unknown>[];
+      top_packs: {
+        id: string;
+        name: string;
+        description: string | null;
+        price: number;
+        is_official: boolean;
+        is_active: boolean;
+        cover_image_url: string | null;
+        purchase_count: number;
+      }[];
       total_commission: number;
       total_sales: number;
       active_packs: number;

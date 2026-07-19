@@ -81,11 +81,11 @@ export default function DashboardPage() {
             </CardHeader>
           </Card>
         </Link>
-        <Link href="/settings">
-          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+        <Link href="/marketplace">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full border-pink-500/30">
             <CardHeader>
-              <CardTitle className="text-lg">{t("nav.settings")}</CardTitle>
-              <CardDescription>{t("dashboard.settingsHint")}</CardDescription>
+              <CardTitle className="text-lg">🛍️ {t("nav.marketplace")}</CardTitle>
+              <CardDescription>{t("dashboard.marketplaceHint")}</CardDescription>
             </CardHeader>
           </Card>
         </Link>
@@ -102,6 +102,14 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-lg">{t("nav.wallet")}</CardTitle>
               <CardDescription>{t("dashboard.walletHint")}</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+        <Link href="/settings">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
+            <CardHeader>
+              <CardTitle className="text-lg">{t("nav.settings")}</CardTitle>
+              <CardDescription>{t("dashboard.settingsHint")}</CardDescription>
             </CardHeader>
           </Card>
         </Link>

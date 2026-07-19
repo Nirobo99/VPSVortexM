@@ -232,6 +232,7 @@
   },
   "dashboard": {
     "profileHint": "Avatar, bio, stories, QR code",
+    "marketplaceHint": "Buy, create and install sticker packs",
     "settingsHint": "Theme, notifications, chats",
     "stage4done": "Stage 4 complete. Next — channels and group chats.",
     "stage5done": "Stage 5 complete. Next — YooKassa payments.",

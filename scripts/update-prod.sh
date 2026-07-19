@@ -53,4 +53,13 @@ else
   echo "  Try: docker compose -f docker-compose.prod.yml logs frontend --tail 80"
 fi
 
+echo "==> Marketplace route check"
+MP_CODE="$(curl -s -o /dev/null -w "%{http_code}" https://vortexm.ru/marketplace || true)"
+echo "GET /marketplace -> HTTP $MP_CODE (expect 200 or 307/308, not 404)"
+if [[ "$MP_CODE" == "404" ]]; then
+  echo "ERROR: marketplace page missing — frontend build likely failed. Check:"
+  echo "  docker compose -f docker-compose.prod.yml logs frontend --tail 120"
+  exit 1
+fi
+
 echo "==> Done. Hard-refresh browser (Ctrl+Shift+R) or clear site data if UI is stale."
