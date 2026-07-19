@@ -9,7 +9,8 @@
     "logout": "Баромад",
     "dashboard": "Асосӣ",
     "profile": "Профил",
-    "settings": "Танзимот"
+    "settings": "Танзимот",
+    "marketplace": "Маркетплейс"
   },
   "auth": {
     "email": "Email",

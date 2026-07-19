@@ -422,6 +422,50 @@ export interface UnreadSummary {
   total: number;
 }
 
+export interface StickerItem {
+  id: string;
+  pack_id: string;
+  image_url: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface StickerPack {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  is_official: boolean;
+  is_active: boolean;
+  cover_image_url: string | null;
+  purchase_count: number;
+  creator_id?: string | null;
+  creator_username?: string | null;
+  creator_display_name?: string | null;
+  sticker_count: number;
+  owned: boolean;
+  moderation_status?: string | null;
+  rejection_reason?: string | null;
+  created_at: string;
+  preview_stickers?: StickerItem[];
+  stickers?: StickerItem[];
+}
+
+export interface MarketplacePage {
+  items: StickerPack[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export interface InstalledStickersResponse {
+  packs: StickerPack[];
+  installed_count: number;
+  slot_limit: number | null;
+  slots_used: number;
+}
+
 export interface ChatMessage {
   id: string;
   dialog_id: string;
@@ -1379,6 +1423,79 @@ class ApiClient {
   getPublicPage(slug: string) {
     return this.request<{ slug: string; title: string; content_html: string }>(
       `/pages/${encodeURIComponent(slug)}`
+    );
+  }
+
+  getMarketplace(params?: {
+    type?: string;
+    paid?: string;
+    sort?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const q = new URLSearchParams();
+    if (params?.type) q.set("type", params.type);
+    if (params?.paid) q.set("paid", params.paid);
+    if (params?.sort) q.set("sort", params.sort);
+    if (params?.search) q.set("search", params.search);
+    if (params?.page) q.set("page", String(params.page));
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return this.request<MarketplacePage>(`/stickers/marketplace${qs ? `?${qs}` : ""}`, {}, true);
+  }
+
+  getMarketplacePack(packId: string) {
+    return this.request<StickerPack>(`/stickers/marketplace/${packId}`, {}, true);
+  }
+
+  buyStickerPack(packId: string) {
+    return this.request<StickerPack>(`/stickers/marketplace/${packId}/buy`, { method: "POST" }, true);
+  }
+
+  installStickerPack(packId: string) {
+    return this.request<StickerPack>(`/stickers/my/${packId}/install`, { method: "POST" }, true);
+  }
+
+  removeStickerPack(packId: string) {
+    return this.request<{ message: string }>(`/stickers/my/${packId}/remove`, { method: "DELETE" }, true);
+  }
+
+  getInstalledStickers() {
+    return this.request<InstalledStickersResponse>("/stickers/my", {}, true);
+  }
+
+  getMyCreatedPacks(status?: string) {
+    const q = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.request<StickerPack[]>(`/stickers/packs/my${q}`, {}, true);
+  }
+
+  async createStickerPack(form: FormData) {
+    const res = await this.requestRaw("/stickers/packs", { method: "POST", body: form });
+    return res.json() as Promise<StickerPack>;
+  }
+
+  async updateStickerPack(packId: string, form: FormData) {
+    const res = await this.requestRaw(`/stickers/packs/${packId}`, { method: "PUT", body: form });
+    return res.json() as Promise<StickerPack>;
+  }
+
+  deleteStickerPack(packId: string) {
+    return this.request<{ message: string }>(`/stickers/packs/${packId}`, { method: "DELETE" }, true);
+  }
+
+  async addStickersToPack(packId: string, files: File[]) {
+    const form = new FormData();
+    files.forEach((f) => form.append("stickers", f));
+    const res = await this.requestRaw(`/stickers/packs/${packId}/stickers`, { method: "POST", body: form });
+    return res.json() as Promise<StickerPack>;
+  }
+
+  deleteStickerFromPack(packId: string, stickerId: string) {
+    return this.request<StickerPack>(
+      `/stickers/packs/${packId}/stickers/${stickerId}`,
+      { method: "DELETE" },
+      true
     );
   }
 }

@@ -105,6 +105,12 @@ class AuthService:
         user.is_verified = True
         await self.db.delete(record)
         await self.db.commit()
+        try:
+            from app.services.sticker_service import StickerService
+
+            await StickerService(self.db).grant_official_free_packs(user)
+        except Exception:
+            pass
         return user
 
     async def login(

@@ -267,4 +267,34 @@ export const adminApi = {
       credentials: "include",
     }).then((r) => r.text());
   },
+  stickerModeration(status?: string) {
+    const q = status ? `?status=${encodeURIComponent(status)}` : "";
+    return adminRequest<Record<string, unknown>[]>(`/admin/stickers/moderation${q}`);
+  },
+  approveStickerPack(packId: string) {
+    return adminRequest(`/admin/stickers/moderation/${packId}/approve`, { method: "POST" });
+  },
+  rejectStickerPack(packId: string, reason: string) {
+    return adminRequest(`/admin/stickers/moderation/${packId}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  },
+  stickerOfficial() {
+    return adminRequest<Record<string, unknown>[]>("/admin/stickers/official");
+  },
+  async createOfficialStickerPack(form: FormData) {
+    return adminRequest("/admin/stickers/official", { method: "POST", body: form });
+  },
+  deleteOfficialStickerPack(packId: string) {
+    return adminRequest(`/admin/stickers/official/${packId}`, { method: "DELETE" });
+  },
+  stickerStats() {
+    return adminRequest<{
+      top_packs: Record<string, unknown>[];
+      total_commission: number;
+      total_sales: number;
+      active_packs: number;
+    }>("/admin/stickers/stats");
+  },
 };

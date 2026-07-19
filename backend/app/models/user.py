@@ -74,6 +74,8 @@ class User(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invisible_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invisible_fake_last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sticker_extra_slots: Mapped[int] = mapped_column(Integer, default=0)
+    premium_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     username_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

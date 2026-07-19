@@ -13,11 +13,12 @@ import { cn } from "@/lib/utils";
 import { isAdminUser } from "@/lib/profileDisplay";
 
 const NAV = [
-  { href: "/dashboard", key: "dashboard" },
+  { href: "/profile", key: "profile" },
+  { href: "/marketplace", key: "marketplace" },
   { href: "/messages", key: "messages" },
   { href: "/wallet", key: "wallet" },
-  { href: "/profile", key: "profile" },
   { href: "/settings", key: "settings" },
+  { href: "/dashboard", key: "dashboard" },
   { href: "/admin/login", key: "admin", adminOnly: true },
 ] as const;
 
@@ -32,6 +33,9 @@ function navActive(pathname: string, href: string) {
       pathname.startsWith("/channels") ||
       pathname.startsWith("/groups")
     );
+  }
+  if (href === "/marketplace") {
+    return pathname === "/marketplace" || pathname.startsWith("/marketplace/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -174,6 +178,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
+                {key === "marketplace" && (
+                  <span className="text-base" aria-hidden>
+                    🛍️
+                  </span>
+                )}
                 <span className="flex-1">{t(`nav.${key}`)}</span>
                 {key === "messages" && summary.total > 0 && (
                   <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[11px] font-semibold flex items-center justify-center tabular-nums">

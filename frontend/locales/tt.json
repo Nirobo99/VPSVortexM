@@ -9,7 +9,8 @@
     "logout": "Чыгу",
     "dashboard": "Баш бит",
     "profile": "Профиль",
-    "settings": "Көйләүләр"
+    "settings": "Көйләүләр",
+    "marketplace": "Маркетплейс"
   },
   "auth": {
     "email": "Email",

@@ -234,5 +234,29 @@
     "channel_deleted": "Канал удалён",
     "confirm_required": "Требуется подтверждение CONFIRM",
     "unknown_command": "Неизвестная команда"
+  },
+  "stickers": {
+    "pack_not_found": "Стикерпак не найден",
+    "pack_not_active": "Стикерпак недоступен",
+    "pack_not_free": "Этот пак платный",
+    "already_owned": "Пак уже установлен",
+    "not_installed": "Пак не установлен",
+    "insufficient_vmoney": "Недостаточно V.Money",
+    "slot_limit_exceeded": "Достигнут лимит установленных паков",
+    "invalid_name": "Укажите название",
+    "invalid_price": "Некорректная цена",
+    "invalid_image_type": "Допустимы PNG и WebP",
+    "file_too_large": "Файл слишком большой",
+    "too_few_stickers": "Минимум 5 стикеров",
+    "too_many_stickers": "Максимум 30 стикеров",
+    "no_permission": "Недостаточно прав",
+    "cannot_edit_approved": "Одобренный пак нельзя редактировать",
+    "sticker_not_found": "Стикер не найден",
+    "sticker_not_owned": "Стикер недоступен",
+    "pack_deleted": "Пак удалён",
+    "pack_removed": "Пак убран из установленных",
+    "reason_required": "Укажите причину отклонения",
+    "invalid_pack": "Некорректный пак",
+    "not_official": "Это не официальный пак"
   }
 }

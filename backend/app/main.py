@@ -374,6 +374,77 @@ async def lifespan(app: FastAPI):
           END IF;
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS sticker_extra_slots integer NOT NULL DEFAULT 0;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_until timestamptz;
+          BEGIN
+            ALTER TABLE wallet_transactions ALTER COLUMN transaction_type TYPE varchar(32);
+          EXCEPTION WHEN others THEN NULL;
+          END;
+          IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'messagetype') THEN
+            BEGIN
+              ALTER TYPE messagetype ADD VALUE IF NOT EXISTS 'sticker';
+            EXCEPTION WHEN others THEN NULL;
+            END;
+          END IF;
+        END $$;
+        """,
+        """
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'moderationstatus') THEN
+            CREATE TYPE moderationstatus AS ENUM ('pending', 'approved', 'rejected', 'draft');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sticker_packs') THEN
+            CREATE TABLE sticker_packs (
+              id uuid PRIMARY KEY,
+              creator_id uuid REFERENCES users(id) ON DELETE SET NULL,
+              name varchar(128) NOT NULL,
+              description text,
+              price numeric(12,2) NOT NULL DEFAULT 0,
+              is_official boolean NOT NULL DEFAULT false,
+              is_active boolean NOT NULL DEFAULT false,
+              cover_image_url varchar(512),
+              purchase_count integer NOT NULL DEFAULT 0,
+              created_at timestamptz NOT NULL DEFAULT now(),
+              updated_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_sticker_packs_creator_id ON sticker_packs (creator_id);
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'stickers') THEN
+            CREATE TABLE stickers (
+              id uuid PRIMARY KEY,
+              pack_id uuid NOT NULL REFERENCES sticker_packs(id) ON DELETE CASCADE,
+              image_url varchar(512) NOT NULL,
+              sort_order integer NOT NULL DEFAULT 0,
+              created_at timestamptz NOT NULL DEFAULT now()
+            );
+            CREATE INDEX IF NOT EXISTS ix_stickers_pack_id ON stickers (pack_id);
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_sticker_packs') THEN
+            CREATE TABLE user_sticker_packs (
+              id uuid PRIMARY KEY,
+              user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              pack_id uuid NOT NULL REFERENCES sticker_packs(id) ON DELETE CASCADE,
+              purchased_at timestamptz NOT NULL DEFAULT now(),
+              UNIQUE (user_id, pack_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_user_sticker_packs_user_id ON user_sticker_packs (user_id);
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sticker_pack_moderations') THEN
+            CREATE TABLE sticker_pack_moderations (
+              id uuid PRIMARY KEY,
+              pack_id uuid NOT NULL UNIQUE REFERENCES sticker_packs(id) ON DELETE CASCADE,
+              status moderationstatus NOT NULL DEFAULT 'pending',
+              reviewed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+              reviewed_at timestamptz,
+              rejection_reason text
+            );
+          END IF;
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text

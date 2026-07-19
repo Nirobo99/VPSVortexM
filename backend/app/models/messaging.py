@@ -33,6 +33,7 @@ class MessageType(str, enum.Enum):
     VIDEO_NOTE = "video_note"
     FILE = "file"
     SYSTEM = "system"
+    STICKER = "sticker"
 
 
 class ChatFolder(Base):

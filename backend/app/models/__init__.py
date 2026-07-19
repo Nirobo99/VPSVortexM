@@ -27,6 +27,7 @@ from app.models.channels import (
     PostReaction,
 )
 from app.models.payments import WalletPayment, WalletTransaction
+from app.models.sticker import Sticker, StickerPack, StickerPackModeration, UserStickerPack
 from app.models.admin import (
     AdminAccount,
     AdminLog,

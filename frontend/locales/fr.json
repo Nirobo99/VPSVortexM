@@ -9,7 +9,8 @@
     "logout": "Déconnexion",
     "dashboard": "Accueil",
     "profile": "Profil",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "marketplace": "Boutique"
   },
   "auth": {
     "email": "Email",

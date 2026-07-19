@@ -47,6 +47,6 @@ class WalletTransaction(Base):
     )
     amount: Mapped[int] = mapped_column(Integer)
     balance_after: Mapped[int] = mapped_column(Integer)
-    transaction_type: Mapped[str] = mapped_column(String(16), default=TransactionType.SPEND.value)
+    transaction_type: Mapped[str] = mapped_column(String(32), default=TransactionType.SPEND.value)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -207,5 +207,29 @@
     "channel_deleted": "Channel deleted",
     "confirm_required": "CONFIRM confirmation required",
     "unknown_command": "Unknown command"
+  },
+  "stickers": {
+    "pack_not_found": "Sticker pack not found",
+    "pack_not_active": "Sticker pack is unavailable",
+    "pack_not_free": "This pack is paid",
+    "already_owned": "Pack already installed",
+    "not_installed": "Pack is not installed",
+    "insufficient_vmoney": "Not enough V.Money",
+    "slot_limit_exceeded": "Installed pack limit reached",
+    "invalid_name": "Enter a name",
+    "invalid_price": "Invalid price",
+    "invalid_image_type": "PNG and WebP only",
+    "file_too_large": "File is too large",
+    "too_few_stickers": "At least 5 stickers required",
+    "too_many_stickers": "Maximum 30 stickers",
+    "no_permission": "Insufficient permissions",
+    "cannot_edit_approved": "Approved pack cannot be edited",
+    "sticker_not_found": "Sticker not found",
+    "sticker_not_owned": "Sticker unavailable",
+    "pack_deleted": "Pack deleted",
+    "pack_removed": "Pack removed from installed",
+    "reason_required": "Rejection reason required",
+    "invalid_pack": "Invalid pack",
+    "not_official": "Not an official pack"
   }
 }

@@ -550,6 +550,8 @@ class MessagingService:
             raise ValueError("e2e_content_required")
         if not is_secret and message_type == MessageType.TEXT and not content and not media_content:
             raise ValueError("content_required")
+        if message_type == MessageType.STICKER and not content:
+            raise ValueError("content_required")
 
         if reply_to_id:
             rep = await self.db.execute(
@@ -561,7 +563,13 @@ class MessagingService:
         media_url = None
         media_type = None
         file_size = None
-        if media_content and media_content_type:
+        if message_type == MessageType.STICKER and content:
+            from app.services.sticker_service import StickerService
+
+            sticker = await StickerService(self.db).resolve_sticker_for_send(user, uuid.UUID(content))
+            media_url = sticker.image_url
+            media_type = "image/webp"
+        elif media_content and media_content_type:
             media_url, media_type = StorageService.upload_message_media(
                 dialog_id, user.id, media_content, media_content_type, message_type.value
             )

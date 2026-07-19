@@ -20,6 +20,9 @@ import { useCallActions } from "@/components/calls/CallProvider";
 import { Avatar, Button, Card, CardContent, Input, Label } from "@/components/ui";
 import { EmojiPickerButton } from "@/components/ui/EmojiPickerButton";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
+import { StickerPicker } from "@/components/chat/StickerPicker";
+import { StickerMessage } from "@/components/chat/StickerMessage";
+import type { StickerItem } from "@/lib/api";
 
 type GroupMember = {
   user_id: string;
@@ -56,6 +59,7 @@ export default function ChatPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [banMessage, setBanMessage] = useState<string | null>(null);
+  const [stickerOpen, setStickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
@@ -264,6 +268,22 @@ export default function ChatPage() {
     }
   };
 
+  const sendSticker = async (sticker: StickerItem) => {
+    if (sending || isBanned) return;
+    setSending(true);
+    try {
+      const msg = await api.sendMessage(dialogId, {
+        message_type: "sticker",
+        content: sticker.id,
+      });
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+    } finally {
+      setSending(false);
+    }
+  };
+
   const isRead = (m: ChatMessage) => {
     if (!otherReadAt || m.sender_id !== user?.id) return false;
     return new Date(m.created_at) <= new Date(otherReadAt);
@@ -367,11 +387,13 @@ export default function ChatPage() {
 
   const displayContent = (m: ChatMessage) => {
     if (m.is_deleted) return t("chats.deleted");
+    if (m.message_type === "sticker") return t("marketplace.sticker");
     if (dialog?.is_secret) return decrypted[m.id] || "🔒";
     return m.content;
   };
 
   const renderContent = (m: ChatMessage) => {
+    if (m.message_type === "sticker") return null;
     const raw = displayContent(m);
     if (!raw || m.is_deleted || dialog?.is_secret) return raw;
     return <LinkifiedText text={raw} />;
@@ -692,6 +714,7 @@ export default function ChatPage() {
                   {m.media_url && m.message_type === "image" && (
                     <img src={m.media_url} alt="" className="max-w-full rounded mb-1" />
                   )}
+                  {m.message_type === "sticker" && m.media_url && <StickerMessage url={m.media_url} />}
                   {m.media_url && (m.message_type === "voice" || m.message_type === "video_note") && (
                     <audio src={m.media_url} controls className="max-w-full mb-1" />
                   )}
@@ -809,10 +832,24 @@ export default function ChatPage() {
               </div>
             )}
 
+            {stickerOpen && (
+              <div className="px-4">
+                <StickerPicker open={stickerOpen} onClose={() => setStickerOpen(false)} onPick={sendSticker} />
+              </div>
+            )}
+
             <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0 items-end">
               <input ref={fileRef} type="file" className="hidden" onChange={() => send()} />
               <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()}>
                 📎
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setStickerOpen((v) => !v)}
+                title={t("marketplace.sticker")}
+              >
+                🎨
               </Button>
               <EmojiPickerButton onPick={(emoji) => setText((prev) => prev + emoji)} title={t("chats.emoji")} />
               <Input
