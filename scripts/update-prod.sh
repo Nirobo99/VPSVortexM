@@ -19,14 +19,15 @@ cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
 
 echo "==> Git remote"
 git remote -v || true
-# Prefer the current GitHub repo name (without trailing dash)
 git remote set-url origin https://github.com/Nirobo99/VPSVortexM.git 2>/dev/null || true
 
-echo "==> Git pull ($BRANCH) — hard reset to origin (discard local server drift)"
+echo "==> Git sync ($BRANCH) — hard reset tracked files only (NEVER wipe certbot/)"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+# Discard local edits to tracked files only. Do NOT run `git clean -fd` —
+# that deletes certbot/ (gitignored SSL certs) and takes the site offline.
 git reset --hard "origin/$BRANCH"
-git clean -fd -e .env -e '.env.backup.*' -e uploads -e media -e data
+git checkout -- . 2>/dev/null || true
 
 echo "==> Current commit"
 git log -1 --oneline
@@ -57,6 +58,10 @@ if ! grep -q 'href: "/marketplace"' frontend/components/layout/AppShell.tsx; the
 fi
 echo "OK: marketplace sources present"
 
+if [[ ! -d certbot/conf/live ]]; then
+  echo "WARN: certbot/conf/live missing — nginx HTTPS may fail. Will prefer HTTP-only if needed."
+fi
+
 if [[ "$(grep -c 'dialog_type' backend/app/models/messaging.py || true)" -gt 1 ]]; then
   echo "WARNING: duplicate dialog_type in messaging.py — fix before continuing."
   exit 1
@@ -65,16 +70,37 @@ fi
 export BUILD_ID="$HEAD_SHORT"
 echo "==> Build ID: $BUILD_ID"
 
+echo "==> Ensure nginx can start (SSL or HTTP-only)"
+if [[ -d certbot/conf/live/vortexm.ru ]] || [[ -d certbot/conf/live ]]; then
+  if [[ -f nginx/nginx.prod.conf ]]; then
+    DOMAIN="$(basename "$(ls -d certbot/conf/live/*/ 2>/dev/null | head -1)" 2>/dev/null || echo vortexm.ru)"
+    if [[ "$DOMAIN" == "README" || -z "$DOMAIN" ]]; then DOMAIN=vortexm.ru; fi
+    sed "s/YOUR_DOMAIN/$DOMAIN/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
+    if grep -q '^NGINX_CONFIG=' .env; then
+      sed -i 's|^NGINX_CONFIG=.*|NGINX_CONFIG=./nginx/nginx.prod.active.conf|' .env
+    else
+      echo 'NGINX_CONFIG=./nginx/nginx.prod.active.conf' >> .env
+    fi
+  fi
+else
+  echo "==> No SSL certs — switching to HTTP-only nginx so the site comes up"
+  if grep -q '^NGINX_CONFIG=' .env; then
+    sed -i 's|^NGINX_CONFIG=.*|NGINX_CONFIG=./nginx/nginx.http-only.conf|' .env
+  else
+    echo 'NGINX_CONFIG=./nginx/nginx.http-only.conf' >> .env
+  fi
+fi
+
 echo "==> Rebuild backend + frontend (no cache)"
-if ! docker compose -f docker-compose.prod.yml --env-file .env build --no-cache --pull backend frontend; then
-  echo "ERROR: docker build failed — old containers were NOT replaced."
-  echo "  Fix the build error above, then re-run this script."
+if ! docker compose -f docker-compose.prod.yml --env-file .env build --no-cache backend frontend; then
+  echo "ERROR: docker build failed — attempting emergency restore of existing images..."
+  ./scripts/recover-prod.sh || true
   exit 1
 fi
 
-echo "==> Recreate containers"
+echo "==> Recreate app containers (keep postgres/redis/minio running)"
 docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate backend frontend celery-worker celery-beat
-docker compose -f docker-compose.prod.yml restart nginx
+docker compose -f docker-compose.prod.yml --env-file .env up -d --force-recreate nginx
 
 echo "==> Wait for backend"
 sleep 12
@@ -84,26 +110,23 @@ docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head |
   echo "WARN: alembic upgrade failed — check backend logs"
 }
 
-echo "==> Health"
-curl -sf -o /dev/null -w "API health: %{http_code}\n" https://vortexm.ru/api/v1/health || true
-
-echo "==> Frontend marker (animated landing = new UI)"
-if curl -sf https://vortexm.ru/ | grep -q 'animated-bg'; then
-  echo "OK: new frontend detected (animated-bg)"
-else
-  echo "WARN: animated-bg not found — frontend may still be old."
-  echo "  Try: docker compose -f docker-compose.prod.yml logs frontend --tail 80"
-fi
+echo "==> Health (local)"
+curl -sf -o /dev/null -w "local http: %{http_code}\n" http://127.0.0.1/ || true
+curl -sf -o /dev/null -w "API health: %{http_code}\n" https://vortexm.ru/api/v1/health || \
+  curl -sf -o /dev/null -w "API health (http): %{http_code}\n" http://127.0.0.1/api/v1/health || true
 
 echo "==> Marketplace route check"
 MP_CODE="$(curl -s -o /dev/null -w "%{http_code}" https://vortexm.ru/marketplace || true)"
+if [[ "$MP_CODE" == "000" || -z "$MP_CODE" ]]; then
+  MP_CODE="$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/marketplace || true)"
+fi
 echo "GET /marketplace -> HTTP $MP_CODE (expect 200 or 307/308, not 404)"
 if [[ "$MP_CODE" == "404" ]]; then
   echo "ERROR: marketplace page missing — frontend image is still old or build omitted the route."
   echo "  docker compose -f docker-compose.prod.yml logs frontend --tail 120"
-  echo "  docker compose -f docker-compose.prod.yml images frontend"
   exit 1
 fi
 
 echo "==> Done. Commit on server: $HEAD_SHORT"
-echo "    Hard-refresh browser (Ctrl+Shift+R) after deploy."
+echo "    If HTTPS still broken: ./scripts/init-ssl.sh vortexm.ru YOUR_EMAIL"
+echo "    Hard-refresh browser (Ctrl+Shift+R)."
