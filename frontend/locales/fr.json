@@ -19,6 +19,8 @@
     "messages": "Messages",
     "wallet": "Portefeuille",
     "admin": "Admin",
+    "dashboard": "Accueil",
+    "logout": "Déconnexion",
     "open_menu": "Ouvrir le menu",
     "close_menu": "Fermer le menu"
   },

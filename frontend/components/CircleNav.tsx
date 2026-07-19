@@ -1,15 +1,16 @@
 "use client";
 
 /**
- * CircleNav — floating circular navigation for VortexM.
- * Collapsed: single pulsing FAB with Vortex "V" mark.
- * Expanded: radial child actions around the FAB + dimmed overlay.
+ * CircleNav — floating FAB with an upper semicircle of app destinations.
+ * Mount only inside authenticated AppShell (do not gate on a second useAuth).
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  Home,
+  LogOut,
   MessageCircle,
   Settings,
   Shield,
@@ -23,24 +24,24 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export interface CircleNavProps {
-  /** Current pathname — highlights the matching child button */
   activePath: string;
-  /** Show the Admin petal when true */
   isAdmin: boolean;
-  /** When false, FAB redirects to login instead of expanding */
-  isAuthenticated: boolean;
+  /** Unread badge on Messages */
+  messageUnread?: number;
+  onLogout: () => void;
 }
 
 type NavItem = {
   id: string;
-  href: string;
+  href?: string;
+  action?: "logout";
   labelKey: string;
   Icon: LucideIcon;
-  /** Degrees from 12 o'clock, clockwise */
   angle: number;
 };
 
-function isPathActive(pathname: string, href: string) {
+function isPathActive(pathname: string, href?: string) {
+  if (!href) return false;
   if (href === "/messages") {
     return (
       pathname === "/messages" ||
@@ -55,26 +56,39 @@ function isPathActive(pathname: string, href: string) {
   if (href === "/admin") {
     return pathname.startsWith("/admin");
   }
+  if (href === "/dashboard") {
+    return pathname === "/dashboard";
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Polar → cartesian; 0° = top, clockwise (matches product spec). */
+/** 0° = top, clockwise → cartesian (y grows downward in CSS). */
 function polar(angleDeg: number, radius: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
 }
 
-function VortexMark({ className }: { className?: string }) {
+/** Evenly space n items on the upper semicircle (left → top → right). */
+function semicircleAngles(count: number): number[] {
+  if (count <= 0) return [];
+  if (count === 1) return [0];
+  // 270° (left) clockwise through 0° (top) to 90° (right) = 180° sweep
+  const start = 270;
+  const sweep = 180;
+  return Array.from({ length: count }, (_, i) => (start + (sweep * i) / (count - 1)) % 360);
+}
+
+function VortexMark({ className, gradId }: { className?: string; gradId: string }) {
   return (
     <svg viewBox="0 0 32 32" className={className} aria-hidden>
       <defs>
-        <linearGradient id="vx-fab" x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#E9D5FF" />
           <stop offset="100%" stopColor="#FFFFFF" />
         </linearGradient>
       </defs>
       <path
-        fill="url(#vx-fab)"
+        fill={`url(#${gradId})`}
         d="M8 6c1.2 0 2.2.6 2.8 1.6L16 18.2 21.2 7.6C21.8 6.6 22.8 6 24 6h1.2l-7.4 15.2c-.5 1-1.5 1.6-2.6 1.6h-.4c-1.1 0-2.1-.6-2.6-1.6L4.8 6H8z"
       />
       <path
@@ -89,16 +103,16 @@ function VortexMark({ className }: { className?: string }) {
   );
 }
 
-export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavProps) {
+export function CircleNav({ activePath, isAdmin, messageUnread = 0, onLogout }: CircleNavProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const [isOpen, setIsOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const menuId = useId();
+  const gradId = useId().replace(/:/g, "");
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
@@ -109,54 +123,49 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
   }, []);
 
   const items: NavItem[] = useMemo(() => {
-    if (isAdmin) {
-      return [
-        { id: "profile", href: "/profile", labelKey: "navigation.profile", Icon: User, angle: 0 },
-        { id: "admin", href: "/admin", labelKey: "navigation.admin", Icon: Shield, angle: 60 },
-        { id: "marketplace", href: "/marketplace", labelKey: "navigation.marketplace", Icon: ShoppingBag, angle: 120 },
-        { id: "settings", href: "/settings", labelKey: "navigation.settings", Icon: Settings, angle: 180 },
-        { id: "messages", href: "/messages", labelKey: "navigation.messages", Icon: MessageCircle, angle: 240 },
-        { id: "wallet", href: "/wallet", labelKey: "navigation.wallet", Icon: Wallet, angle: 300 },
-      ];
-    }
-    return [
-      { id: "profile", href: "/profile", labelKey: "navigation.profile", Icon: User, angle: 0 },
-      { id: "marketplace", href: "/marketplace", labelKey: "navigation.marketplace", Icon: ShoppingBag, angle: 72 },
-      { id: "settings", href: "/settings", labelKey: "navigation.settings", Icon: Settings, angle: 144 },
-      { id: "messages", href: "/messages", labelKey: "navigation.messages", Icon: MessageCircle, angle: 216 },
-      { id: "wallet", href: "/wallet", labelKey: "navigation.wallet", Icon: Wallet, angle: 288 },
+    const base: Omit<NavItem, "angle">[] = [
+      { id: "dashboard", href: "/dashboard", labelKey: "navigation.dashboard", Icon: Home },
+      { id: "messages", href: "/messages", labelKey: "navigation.messages", Icon: MessageCircle },
+      { id: "marketplace", href: "/marketplace", labelKey: "navigation.marketplace", Icon: ShoppingBag },
+      { id: "profile", href: "/profile", labelKey: "navigation.profile", Icon: User },
+      { id: "wallet", href: "/wallet", labelKey: "navigation.wallet", Icon: Wallet },
+      { id: "settings", href: "/settings", labelKey: "navigation.settings", Icon: Settings },
     ];
+    if (isAdmin) {
+      base.push({ id: "admin", href: "/admin", labelKey: "navigation.admin", Icon: Shield });
+    }
+    base.push({ id: "logout", action: "logout", labelKey: "navigation.logout", Icon: LogOut });
+
+    const angles = semicircleAngles(base.length);
+    return base.map((item, i) => ({ ...item, angle: angles[i]! }));
   }, [isAdmin]);
 
-  const radius = isMobile ? 80 : 100;
+  // Wider arc when many items so petals do not overlap
+  const radius = isMobile ? (items.length > 6 ? 108 : 92) : items.length > 6 ? 128 : 112;
   const centerSize = isMobile ? 52 : 56;
   const childSize = isMobile ? 44 : 48;
   const labelSize = isMobile ? 10 : 12;
 
   const close = useCallback(() => setIsOpen(false), []);
 
-  const open = useCallback(() => {
-    setFocusIndex(0);
-    setIsOpen(true);
+  const toggle = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    setIsOpen((v) => !v);
   }, []);
 
-  const toggle = useCallback(() => {
-    if (!isAuthenticated) {
-      router.push("/login");
-      return;
-    }
-    setIsOpen((v) => !v);
-  }, [isAuthenticated, router]);
-
-  const navigate = useCallback(
-    (href: string) => {
+  const activate = useCallback(
+    (item: NavItem) => {
       close();
-      router.push(href);
+      if (item.action === "logout") {
+        onLogout();
+        return;
+      }
+      if (item.href) router.push(item.href);
     },
-    [close, router]
+    [close, onLogout, router]
   );
 
-  // Escape + body scroll lock while open
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -174,14 +183,12 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
     };
   }, [isOpen, close]);
 
-  // Focus first petal when opened
   useEffect(() => {
     if (!isOpen) return;
     const t = window.setTimeout(() => itemRefs.current[0]?.focus(), 50);
     return () => window.clearTimeout(t);
   }, [isOpen, items.length]);
 
-  // Close on route change
   useEffect(() => {
     close();
   }, [activePath, close]);
@@ -214,19 +221,23 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
     : { type: "spring" as const, stiffness: 300, damping: 20 };
 
   return (
-    <div ref={rootRef} className="pointer-events-none fixed inset-x-0 bottom-0 z-[50]">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[50]">
       <AnimatePresence>
         {isOpen && (
           <motion.button
             type="button"
             key="circle-nav-overlay"
             aria-label={t("navigation.close_menu")}
-            className="pointer-events-auto fixed inset-0 z-[40] bg-black/60 backdrop-blur-[8px] dark:bg-black/75"
+            className="pointer-events-auto fixed inset-0 z-[45] bg-black/60 backdrop-blur-[8px] dark:bg-black/75"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
-            onClick={close}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              close();
+            }}
           />
         )}
       </AnimatePresence>
@@ -234,15 +245,16 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
       <div
         className="pointer-events-none fixed bottom-6 left-1/2 z-[50] -translate-x-1/2"
         style={{ width: centerSize, height: centerSize }}
+        role="presentation"
       >
         <AnimatePresence>
           {isOpen &&
             items.map((item, index) => {
               const { x, y } = polar(item.angle, radius);
-              // Label sits further out along the same ray
-              const labelOffset = polar(item.angle, radius + (isMobile ? 28 : 34));
+              const labelOffset = polar(item.angle, radius + (isMobile ? 30 : 36));
               const active = isPathActive(activePath, item.href);
               const Icon = item.Icon;
+              const showBadge = item.id === "messages" && messageUnread > 0;
 
               return (
                 <motion.div
@@ -254,8 +266,8 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
                   exit={{ x: 0, y: 0, scale: 0, opacity: 0 }}
                   transition={{
                     ...spring,
-                    delay: reduceMotion ? 0 : index * 0.05,
-                    opacity: { duration: 0.2, delay: reduceMotion ? 0 : index * 0.05 },
+                    delay: reduceMotion ? 0 : index * 0.04,
+                    opacity: { duration: 0.18, delay: reduceMotion ? 0 : index * 0.04 },
                   }}
                 >
                   <button
@@ -272,32 +284,45 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
                       "bg-[#1E3A8A]/90 text-white transition-shadow duration-200",
                       "hover:bg-[#2563EB] hover:shadow-[0_0_16px_rgba(192,132,252,0.6)]",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F472B6]",
-                      "active:bg-[#2563EB] active:shadow-[0_0_16px_rgba(192,132,252,0.6)]",
-                      active && "ring-2 ring-[#F472B6] shadow-[0_0_16px_rgba(192,132,252,0.55)]"
+                      "active:bg-[#2563EB]",
+                      active && "ring-2 ring-[#F472B6] shadow-[0_0_16px_rgba(192,132,252,0.55)]",
+                      item.action === "logout" && "bg-rose-900/90 hover:bg-rose-700"
                     )}
                     style={{ width: childSize, height: childSize }}
-                    onClick={() => navigate(item.href)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      activate(item);
+                    }}
                     onKeyDown={(e) => onPetalKeyDown(e, index)}
                   >
                     <Icon
-                      className={cn("h-5 w-5", active ? "text-[#F472B6]" : "text-white")}
+                      className={cn(
+                        "h-5 w-5",
+                        active ? "text-[#F472B6]" : "text-white",
+                        item.action === "logout" && "text-[#F472B6]"
+                      )}
                       strokeWidth={2.25}
                     />
+                    {showBadge && (
+                      <span className="absolute -right-1 -top-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-[#F472B6] text-[10px] font-bold text-white flex items-center justify-center tabular-nums">
+                        {messageUnread > 99 ? "99+" : messageUnread}
+                      </span>
+                    )}
                   </button>
 
                   <motion.span
-                    className="pointer-events-none absolute z-[1] whitespace-nowrap font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                    className="pointer-events-none absolute z-[1] whitespace-nowrap font-medium text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]"
                     style={{
                       fontSize: labelSize,
                       left: "50%",
                       top: "50%",
-                      // Sit further out along the same ray (outside the petal)
                       transform: `translate(-50%, -50%) translate(${labelOffset.x - x}px, ${labelOffset.y - y}px)`,
                     }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ delay: reduceMotion ? 0 : 0.1 + index * 0.05, duration: 0.2 }}
+                    transition={{ delay: reduceMotion ? 0 : 0.08 + index * 0.04, duration: 0.2 }}
                   >
                     {t(item.labelKey)}
                   </motion.span>
@@ -308,7 +333,6 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
 
         <motion.button
           type="button"
-          role="button"
           tabIndex={0}
           id={menuId}
           aria-haspopup="menu"
@@ -328,7 +352,7 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              toggle();
+              toggle(e);
             }
           }}
         >
@@ -359,7 +383,7 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
                   transition={{ duration: reduceMotion ? 0 : 0.15 }}
                   className="flex"
                 >
-                  <VortexMark className="h-8 w-8" />
+                  <VortexMark className="h-8 w-8" gradId={`vx-${gradId}`} />
                 </motion.span>
               )}
             </AnimatePresence>
@@ -367,7 +391,7 @@ export function CircleNav({ activePath, isAdmin, isAuthenticated }: CircleNavPro
         </motion.button>
 
         {isOpen && (
-          <div id={`${menuId}-menu`} role="menu" aria-label={t("navigation.open_menu")} className="sr-only">
+          <div id={`${menuId}-menu`} role="menu" className="sr-only">
             {items.map((item) => (
               <span key={item.id}>{t(item.labelKey)}</span>
             ))}

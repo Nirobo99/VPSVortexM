@@ -25,6 +25,8 @@
     "messages": "Messages",
     "wallet": "Wallet",
     "admin": "Admin",
+    "dashboard": "Home",
+    "logout": "Log out",
     "open_menu": "Open navigation menu",
     "close_menu": "Close menu"
   },
