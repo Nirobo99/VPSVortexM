@@ -12,6 +12,16 @@
     "settings": "Paramètres",
     "marketplace": "Boutique"
   },
+  "navigation": {
+    "profile": "Profil",
+    "marketplace": "Boutique",
+    "settings": "Paramètres",
+    "messages": "Messages",
+    "wallet": "Portefeuille",
+    "admin": "Admin",
+    "open_menu": "Ouvrir le menu",
+    "close_menu": "Fermer le menu"
+  },
   "auth": {
     "email": "Email",
     "password": "Mot de passe",

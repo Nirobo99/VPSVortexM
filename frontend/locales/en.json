@@ -18,6 +18,16 @@
     "marketplace": "Marketplace",
     "admin": "Admin"
   },
+  "navigation": {
+    "profile": "Profile",
+    "marketplace": "Marketplace",
+    "settings": "Settings",
+    "messages": "Messages",
+    "wallet": "Wallet",
+    "admin": "Admin",
+    "open_menu": "Open navigation menu",
+    "close_menu": "Close menu"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",

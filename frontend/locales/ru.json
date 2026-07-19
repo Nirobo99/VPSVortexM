@@ -18,6 +18,16 @@
     "marketplace": "Маркетплейс",
     "admin": "Админ"
   },
+  "navigation": {
+    "profile": "Профиль",
+    "marketplace": "Маркетплейс",
+    "settings": "Настройки",
+    "messages": "Сообщения",
+    "wallet": "Кошелёк",
+    "admin": "Админка",
+    "open_menu": "Открыть меню навигации",
+    "close_menu": "Закрыть меню"
+  },
   "auth": {
     "email": "Email",
     "password": "Пароль",

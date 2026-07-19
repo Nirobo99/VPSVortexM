@@ -40,7 +40,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {recaptchaSiteKey ? (
           <Script src={`https://www.google.com/recaptcha/api.js?render=${recaptchaSiteKey}`} strategy="afterInteractive" />
         ) : null}
-        <Providers>{children}</Providers>
+        <Providers>
+          {/* CircleNavHost is mounted inside Providers (auth + i18n). */}
+          {children}
+        </Providers>
       </body>
     </html>
   );

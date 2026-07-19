@@ -12,6 +12,16 @@
     "settings": "Танзимот",
     "marketplace": "Маркетплейс"
   },
+  "navigation": {
+    "profile": "Профил",
+    "marketplace": "Маркетплейс",
+    "settings": "Танзимот",
+    "messages": "Паёмҳо",
+    "wallet": "Ҳамён",
+    "admin": "Админ",
+    "open_menu": "Кушодани меню",
+    "close_menu": "Пӯшидани меню"
+  },
   "auth": {
     "email": "Email",
     "password": "Рамз",

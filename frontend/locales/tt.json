@@ -12,6 +12,16 @@
     "settings": "Көйләүләр",
     "marketplace": "Маркетплейс"
   },
+  "navigation": {
+    "profile": "Профиль",
+    "marketplace": "Маркетплейс",
+    "settings": "Көйләүләр",
+    "messages": "Хәбәрләр",
+    "wallet": "Капчык",
+    "admin": "Админ",
+    "open_menu": "Менюны ачу",
+    "close_menu": "Менюны ябу"
+  },
   "auth": {
     "email": "Email",
     "password": "Серсүз",

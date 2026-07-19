@@ -8,6 +8,7 @@ import { HotkeysProvider } from "@/components/HotkeysProvider";
 import { PwaInstallBanner } from "@/components/PwaInstallBanner";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { DevNoticeBanner } from "@/components/DevNoticeBanner";
+import { CircleNavHost } from "@/components/CircleNavHost";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <DevNoticeBanner />
             <OfflineBanner />
             {children}
+            <CircleNavHost />
             <PwaInstallBanner />
           </HotkeysProvider>
         </CallProvider>
