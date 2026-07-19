@@ -19,11 +19,20 @@ echo "==> Stop accidental DEV stack (if any)"
 docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
 
 echo "==> SSL / nginx config"
-mkdir -p certbot/conf certbot/www
+mkdir -p certbot/conf certbot/www nginx
+# If host path was missing, Docker may have created a directory mount target.
+if [[ -d nginx/nginx.prod.active.conf ]]; then
+  echo "WARN: nginx.prod.active.conf is a directory (docker bind mount artifact) — removing"
+  rm -rf nginx/nginx.prod.active.conf
+fi
 if [[ -d certbot/conf/live ]] && ls certbot/conf/live/*/fullchain.pem >/dev/null 2>&1; then
   DOMAIN="$(basename "$(dirname "$(ls certbot/conf/live/*/fullchain.pem | head -1)")")"
   echo "OK: found certs for $DOMAIN"
   sed "s/YOUR_DOMAIN/$DOMAIN/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
+  if [[ ! -f nginx/nginx.prod.active.conf ]]; then
+    echo "ERROR: failed to write nginx.prod.active.conf as a file"
+    exit 1
+  fi
   if grep -q '^NGINX_CONFIG=' .env; then
     sed -i 's|^NGINX_CONFIG=.*|NGINX_CONFIG=./nginx/nginx.prod.active.conf|' .env
   else

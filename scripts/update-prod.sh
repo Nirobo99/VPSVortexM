@@ -71,11 +71,20 @@ export BUILD_ID="$HEAD_SHORT"
 echo "==> Build ID: $BUILD_ID"
 
 echo "==> Ensure nginx can start (SSL or HTTP-only)"
-if [[ -d certbot/conf/live/vortexm.ru ]] || [[ -d certbot/conf/live ]]; then
+mkdir -p nginx certbot/conf certbot/www
+if [[ -d nginx/nginx.prod.active.conf ]]; then
+  echo "WARN: removing docker bind-mount directory artifact nginx/nginx.prod.active.conf"
+  rm -rf nginx/nginx.prod.active.conf
+fi
+if [[ -d certbot/conf/live/vortexm.ru ]] || ls certbot/conf/live/*/fullchain.pem >/dev/null 2>&1; then
   if [[ -f nginx/nginx.prod.conf ]]; then
-    DOMAIN="$(basename "$(ls -d certbot/conf/live/*/ 2>/dev/null | head -1)" 2>/dev/null || echo vortexm.ru)"
+    DOMAIN="$(basename "$(dirname "$(ls certbot/conf/live/*/fullchain.pem | head -1)")")"
     if [[ "$DOMAIN" == "README" || -z "$DOMAIN" ]]; then DOMAIN=vortexm.ru; fi
     sed "s/YOUR_DOMAIN/$DOMAIN/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
+    if [[ ! -f nginx/nginx.prod.active.conf ]]; then
+      echo "ERROR: nginx.prod.active.conf is not a file"
+      exit 1
+    fi
     if grep -q '^NGINX_CONFIG=' .env; then
       sed -i 's|^NGINX_CONFIG=.*|NGINX_CONFIG=./nginx/nginx.prod.active.conf|' .env
     else

@@ -34,16 +34,21 @@ echo "==> 2) Stop DEV compose if it stole ports"
 docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
 
 echo "==> 3) Prepare nginx config"
-mkdir -p certbot/conf certbot/www
+mkdir -p certbot/conf certbot/www nginx
+# Docker bind-mount creates a DIRECTORY if the host file was missing — that breaks nginx.
+if [[ -d nginx/nginx.prod.active.conf ]]; then
+  echo "    Removing bogus directory nginx/nginx.prod.active.conf"
+  rm -rf nginx/nginx.prod.active.conf
+fi
 CERT=""
 if ls certbot/conf/live/*/fullchain.pem >/dev/null 2>&1; then
   CERT="$(ls certbot/conf/live/*/fullchain.pem | head -1)"
   DOMAIN="$(basename "$(dirname "$CERT")")"
   echo "    SSL certs OK for $DOMAIN"
   sed "s/YOUR_DOMAIN/$DOMAIN/g" nginx/nginx.prod.conf > nginx/nginx.prod.active.conf
-  # Fail hard if placeholder left
-  if grep -q YOUR_DOMAIN nginx/nginx.prod.active.conf; then
-    echo "FATAL: YOUR_DOMAIN still in nginx.prod.active.conf"
+  # Fail hard if placeholder left or not a regular file
+  if [[ ! -f nginx/nginx.prod.active.conf ]] || grep -q YOUR_DOMAIN nginx/nginx.prod.active.conf; then
+    echo "FATAL: nginx.prod.active.conf invalid"
     exit 1
   fi
   if grep -q '^NGINX_CONFIG=' .env; then
@@ -60,6 +65,7 @@ else
   fi
 fi
 echo "    NGINX_CONFIG=$(grep '^NGINX_CONFIG=' .env | tail -1)"
+echo "    nginx conf type: $(file -b nginx/nginx.prod.active.conf 2>/dev/null || ls -ld nginx/nginx.prod.active.conf 2>/dev/null || true)"
 
 echo "==> 4) Start ALL services (existing images first — site up fast)"
 "${COMPOSE[@]}" up -d postgres redis minio
