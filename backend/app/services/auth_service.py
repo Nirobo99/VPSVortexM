@@ -60,10 +60,14 @@ class AuthService:
 
         referred_by_id = None
         if referral_code:
-            ref_result = await self.db.execute(select(User).where(User.referral_code == referral_code))
-            referrer = ref_result.scalar_one_or_none()
-            if referrer:
+            from app.services.referral_service import ReferralService
+
+            ref_svc = ReferralService(self.db)
+            referrer = await ref_svc.get_by_code(referral_code)
+            if referrer and not referrer.is_banned:
                 referred_by_id = referrer.id
+
+        from app.services.referral_service import ReferralService
 
         user = User(
             username=username,
@@ -72,7 +76,7 @@ class AuthService:
             is_active=False,
             is_verified=False,
             locale=locale,
-            referral_code=secrets.token_urlsafe(8)[:12],
+            referral_code=await ReferralService(self.db).ensure_unique_code(),
             referred_by_id=referred_by_id,
         )
         self.db.add(user)

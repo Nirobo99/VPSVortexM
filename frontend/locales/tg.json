@@ -24,6 +24,25 @@
     "open_menu": "Кушодани меню",
     "close_menu": "Пӯшидани меню"
   },
+  "referral": {
+    "title": "Барномаи рефералӣ",
+    "description": "Дӯстонро даъват кунед ва 10% аз хариди аввали онҳо гиред!",
+    "your_link": "Пайванди рефералии шумо:",
+    "copied": "Пайванд нусхабардорӣ шуд!",
+    "stats": "Омор",
+    "invited": "Даъватшудагон",
+    "purchased": "Харид карданд",
+    "earned": "Кор карда шуд",
+    "view_list": "Дидани рӯйхат",
+    "referral_code": "Рамзи рефералӣ",
+    "referral_code_optional": "Рамзи рефералӣ (ихтиёрӣ)",
+    "invited_by": "Шморо даъват кард",
+    "invalid_code": "Рамзи нодуруст",
+    "registered": "Бақайдгирифта",
+    "made_purchase": "Харид кард",
+    "bonus": "Бонус",
+    "invite_landing": "@{{username}} шуморо ба VortexM даъват мекунад!"
+  },
   "auth": {
     "email": "Email",
     "password": "Рамз",

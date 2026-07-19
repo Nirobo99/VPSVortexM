@@ -24,6 +24,25 @@
     "open_menu": "Менюны ачу",
     "close_menu": "Менюны ябу"
   },
+  "referral": {
+    "title": "Реферал программасы",
+    "description": "Дусларыгызны чакырыгыз һәм аларның беренче сатып алуыннан 10% алыгыз!",
+    "your_link": "Сезнең реферал сылтамагыз:",
+    "copied": "Сылтама күчерелде!",
+    "stats": "Статистика",
+    "invited": "Чакырылган",
+    "purchased": "Сатып алганнар",
+    "earned": "Казанган",
+    "view_list": "Исемлекне карау",
+    "referral_code": "Реферал коды",
+    "referral_code_optional": "Реферал коды (мәҗбүри түгел)",
+    "invited_by": "Сезне чакырды",
+    "invalid_code": "Ялгыш код",
+    "registered": "Теркәлгән",
+    "made_purchase": "Сатып алган",
+    "bonus": "Бонус",
+    "invite_landing": "@{{username}} сезне VortexM-га чакыра!"
+  },
   "auth": {
     "email": "Email",
     "password": "Серсүз",

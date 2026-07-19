@@ -640,6 +640,14 @@ class ChannelService:
         if author:
             author.vmoney_balance = int(getattr(author, "vmoney_balance", 0) or 0) + post.price
         self.db.add(PostPurchase(post_id=post.id, user_id=user.id, amount=post.price))
+        try:
+            from app.services.referral_service import ReferralService
+
+            await ReferralService(self.db).process_first_purchase_bonus(
+                user, int(post.price), purchase_type="channel_post_unlock"
+            )
+        except Exception:
+            pass
         await self.db.commit()
         return await self._post_dict(post, user)
 

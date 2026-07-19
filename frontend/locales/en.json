@@ -30,6 +30,25 @@
     "open_menu": "Open navigation menu",
     "close_menu": "Close menu"
   },
+  "referral": {
+    "title": "Referral program",
+    "description": "Invite friends and earn 10% of their first purchase!",
+    "your_link": "Your referral link:",
+    "copied": "Link copied!",
+    "stats": "Stats",
+    "invited": "Invited",
+    "purchased": "Made a purchase",
+    "earned": "Earned",
+    "view_list": "View referral list",
+    "referral_code": "Referral code",
+    "referral_code_optional": "Referral code (optional)",
+    "invited_by": "Invited by",
+    "invalid_code": "Invalid referral code",
+    "registered": "Registered",
+    "made_purchase": "Made a purchase",
+    "bonus": "Bonus",
+    "invite_landing": "@{{username}} invites you to VortexM!"
+  },
   "auth": {
     "email": "Email",
     "password": "Password",

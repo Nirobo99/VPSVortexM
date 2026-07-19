@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
 import { AuthLayout } from "@/components/auth/AuthLayout";
+import { ReferralCodeInput } from "@/components/referral/ReferralCodeInput";
 import { Button, Input, Label, Card, CardHeader, CardTitle, CardContent, Alert } from "@/components/ui";
 import { getCaptchaToken } from "@/lib/captcha";
 import { api } from "@/lib/api";
@@ -14,6 +15,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,7 @@ export default function RegisterPage() {
         password,
         locale: i18n.language?.slice(0, 2) || "ru",
         captcha_token: captchaToken,
+        referral_code: referralCode.trim() || undefined,
       });
       setSuccess(res.message);
     } catch (err) {
@@ -70,6 +73,7 @@ export default function RegisterPage() {
               <Label htmlFor="confirm">{t("auth.confirmPassword")}</Label>
               <Input id="confirm" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
             </div>
+            <ReferralCodeInput value={referralCode} onChange={setReferralCode} />
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "..." : t("auth.registerButton")}
             </Button>

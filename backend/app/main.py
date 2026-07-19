@@ -438,6 +438,26 @@ async def lifespan(app: FastAPI):
           );
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_bonus_earned integer NOT NULL DEFAULT 0;
+          CREATE TABLE IF NOT EXISTS referral_bonuses (
+            id uuid PRIMARY KEY,
+            referrer_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            referred_user_id uuid NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            purchase_amount integer NOT NULL,
+            bonus_amount integer NOT NULL,
+            purchase_type varchar(64),
+            created_at timestamptz NOT NULL DEFAULT now()
+          );
+          CREATE INDEX IF NOT EXISTS ix_referral_bonuses_referrer_id ON referral_bonuses (referrer_id);
+          CREATE INDEX IF NOT EXISTS ix_referral_bonuses_referred_user_id ON referral_bonuses (referred_user_id);
+          UPDATE users
+          SET referral_code = UPPER(SUBSTRING(REPLACE(id::text, '-', '') FROM 1 FOR 8))
+          WHERE referral_code IS NULL OR referral_code = '';
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text

@@ -61,6 +61,7 @@ class User(Base):
     vmoney_balance: Mapped[int] = mapped_column(Integer, default=0)
     referral_code: Mapped[str | None] = mapped_column(String(16), unique=True, nullable=True)
     referred_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    referral_bonus_earned: Mapped[int] = mapped_column(Integer, default=0)
     locale: Mapped[str] = mapped_column(String(5), default="ru")
     notify_messages: Mapped[bool] = mapped_column(Boolean, default=True)
     notify_calls: Mapped[bool] = mapped_column(Boolean, default=True)

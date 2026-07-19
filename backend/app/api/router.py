@@ -11,6 +11,7 @@ from app.api import (
     complaints,
     conversations,
     public_pages,
+    referral,
     stickers,
     users,
     wallet,
@@ -25,6 +26,7 @@ api_router.include_router(channels.router)
 api_router.include_router(conversations.router)
 api_router.include_router(wallet.router)
 api_router.include_router(stickers.router)
+api_router.include_router(referral.router)
 api_router.include_router(complaints.router)
 api_router.include_router(public_pages.router)
 api_router.include_router(admin_auth.router)

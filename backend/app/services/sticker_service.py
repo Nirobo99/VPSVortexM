@@ -465,6 +465,14 @@ class StickerService:
 
         pack.purchase_count = int(pack.purchase_count or 0) + 1
         self.db.add(UserStickerPack(user_id=user.id, pack_id=pack.id))
+        try:
+            from app.services.referral_service import ReferralService
+
+            await ReferralService(self.db).process_first_purchase_bonus(
+                user, price, purchase_type=TX_BUY
+            )
+        except Exception:
+            pass
         await self.db.commit()
         return await self._pack_dict(await self._get_pack(pack.id), viewer=user, include_stickers=True)
 

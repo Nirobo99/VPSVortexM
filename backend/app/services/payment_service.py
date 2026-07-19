@@ -351,6 +351,14 @@ class PaymentService:
             description="Подписка «Невидимка» (30 дней, V.Money)",
         )
         self.db.add(txn)
+        try:
+            from app.services.referral_service import ReferralService
+
+            await ReferralService(self.db).process_first_purchase_bonus(
+                user, price, purchase_type="invisible_subscription"
+            )
+        except Exception:
+            pass
         await self.db.commit()
         try:
             from app.services.support_notify_service import SupportNotifyService

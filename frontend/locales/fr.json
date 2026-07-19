@@ -24,6 +24,25 @@
     "open_menu": "Ouvrir le menu",
     "close_menu": "Fermer le menu"
   },
+  "referral": {
+    "title": "Programme de parrainage",
+    "description": "Invitez des amis et gagnez 10% de leur premier achat !",
+    "your_link": "Votre lien de parrainage :",
+    "copied": "Lien copié !",
+    "stats": "Statistiques",
+    "invited": "Invités",
+    "purchased": "Ont acheté",
+    "earned": "Gagné",
+    "view_list": "Voir la liste",
+    "referral_code": "Code de parrainage",
+    "referral_code_optional": "Code de parrainage (optionnel)",
+    "invited_by": "Invité par",
+    "invalid_code": "Code invalide",
+    "registered": "Inscrit",
+    "made_purchase": "A acheté",
+    "bonus": "Bonus",
+    "invite_landing": "@{{username}} vous invite sur VortexM !"
+  },
   "auth": {
     "email": "Email",
     "password": "Mot de passe",

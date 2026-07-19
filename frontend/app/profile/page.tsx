@@ -17,6 +17,7 @@ import {
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
 import { VerificationForm } from "@/components/profile/VerificationForm";
+import { ReferralSection } from "@/components/referral/ReferralSection";
 import { sanitizeSvg } from "@/lib/sanitize";
 import {
   Alert,
@@ -639,6 +640,8 @@ export default function ProfilePage() {
                 ))}
               </CardContent>
             </Card>
+
+            <ReferralSection />
           </>
         ) : (
           <>
@@ -884,6 +887,8 @@ export default function ProfilePage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <ReferralSection />
             </div>
           </>
         )}

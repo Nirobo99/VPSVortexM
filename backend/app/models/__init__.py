@@ -27,6 +27,7 @@ from app.models.channels import (
     PostReaction,
 )
 from app.models.payments import WalletPayment, WalletTransaction
+from app.models.referral import ReferralBonus
 from app.models.sticker import Sticker, StickerPack, StickerPackModeration, UserStickerPack
 from app.models.admin import (
     AdminAccount,
@@ -77,6 +78,7 @@ __all__ = [
     "PostReaction",
     "WalletPayment",
     "WalletTransaction",
+    "ReferralBonus",
     "AdminAccount",
     "AdminRefreshToken",
     "AdminLog",

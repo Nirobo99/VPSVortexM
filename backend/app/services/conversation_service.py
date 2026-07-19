@@ -310,6 +310,14 @@ class ConversationService:
                 description=f"Расширение беседы «{dialog.title or ''}»",
             )
         )
+        try:
+            from app.services.referral_service import ReferralService
+
+            await ReferralService(self.db).process_first_purchase_bonus(
+                user, GROUP_EXTENSION_PRICE, purchase_type="chat_expansion"
+            )
+        except Exception:
+            pass
         await self.db.commit()
         try:
             await SupportNotifyService(self.db).notify_purchase(

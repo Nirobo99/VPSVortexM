@@ -304,6 +304,36 @@ export interface WalletHistory {
   transactions: WalletTransaction[];
 }
 
+export interface ReferralInfo {
+  referral_code: string;
+  referral_link: string;
+  referral_count: number;
+  purchased_count: number;
+  total_bonus_earned: number;
+}
+
+export interface ReferralListItem {
+  username: string;
+  avatar_url: string | null;
+  registered_at: string | null;
+  has_purchased: boolean;
+  first_purchase_at: string | null;
+  bonus_earned: number;
+}
+
+export interface ReferralListPage {
+  items: ReferralListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export interface ReferralValidate {
+  valid: boolean;
+  referrer_username: string | null;
+}
+
 export interface TopUpResult {
   payment_id: string;
   confirmation_url: string | null;
@@ -1496,6 +1526,22 @@ class ApiClient {
       `/stickers/packs/${packId}/stickers/${stickerId}`,
       { method: "DELETE" },
       true
+    );
+  }
+
+  getReferralInfo() {
+    return this.request<ReferralInfo>("/referral/info", {}, true);
+  }
+
+  getReferralList(page = 1, limit = 20) {
+    return this.request<ReferralListPage>(`/referral/list?page=${page}&limit=${limit}`, {}, true);
+  }
+
+  validateReferralCode(code: string) {
+    return this.request<ReferralValidate>(
+      `/referral/validate?code=${encodeURIComponent(code)}`,
+      {},
+      false
     );
   }
 }
