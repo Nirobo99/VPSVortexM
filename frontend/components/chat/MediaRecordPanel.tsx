@@ -21,6 +21,27 @@ type Props = {
   disabled?: boolean;
 };
 
+function mediaErrorMessage(err: unknown, mode: RecordMode, t: (key: string) => string): string {
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    return t("chats.mediaInsecureContext");
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return t("chats.mediaNotSupported");
+  }
+  const name = err instanceof DOMException ? err.name : err instanceof Error ? err.name : "";
+  if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+    return mode === "voice" ? t("chats.micPermissionDenied") : t("chats.cameraPermissionDenied");
+  }
+  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+    return mode === "voice" ? t("chats.micNotFound") : t("chats.cameraNotFound");
+  }
+  if (name === "NotReadableError" || name === "TrackStartError") {
+    return t("chats.mediaDeviceBusy");
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return mode === "voice" ? t("chats.micPermissionDenied") : t("chats.cameraPermissionDenied");
+}
+
 export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
   const { t } = useTranslation();
   const [recording, setRecording] = useState(false);
@@ -28,6 +49,7 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -36,6 +58,7 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
   const timerRef = useRef<number | null>(null);
   const blobRef = useRef<Blob | null>(null);
   const mimeRef = useRef<string>("");
+  const previewUrlRef = useRef<string | null>(null);
 
   const maxSeconds = mode === "voice" ? VOICE_MAX_SECONDS : VIDEO_NOTE_MAX_SECONDS;
 
@@ -63,93 +86,111 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
   };
 
   useEffect(() => {
-    let cancelled = false;
-
-    const start = async () => {
-      setError(null);
-      setSeconds(0);
-      blobRef.current = null;
-      chunksRef.current = [];
-
-      try {
-        const constraints: MediaStreamConstraints =
-          mode === "voice"
-            ? { audio: true }
-            : { audio: true, video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } } };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (cancelled) {
-          stream.getTracks().forEach((tr) => tr.stop());
-          return;
-        }
-        streamRef.current = stream;
-
-        if (mode === "video_note" && videoRef.current) {
-          videoRef.current.srcObject = stream;
-          void videoRef.current.play().catch(() => {});
-        }
-
-        const mime = mode === "voice" ? pickVoiceMime() : pickVideoNoteMime();
-        mimeRef.current = mime;
-        const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-        recorderRef.current = recorder;
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunksRef.current.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          cleanupStream();
-          const blob = new Blob(chunksRef.current, { type: mimeRef.current || (mode === "voice" ? "audio/webm" : "video/webm") });
-          blobRef.current = blob;
-          setPreviewUrl(URL.createObjectURL(blob));
-        };
-
-        recorder.start(250);
-        setRecording(true);
-        timerRef.current = window.setInterval(() => {
-          setSeconds((s) => {
-            if (s + 1 >= maxSeconds) {
-              stopRecording();
-              return maxSeconds;
-            }
-            return s + 1;
-          });
-        }, 1000);
-      } catch {
-        setError(
-          mode === "voice" ? t("chats.micPermissionDenied") : t("chats.cameraPermissionDenied")
-        );
-      }
-    };
-
-    void start();
-
     return () => {
-      cancelled = true;
       cleanupTimer();
       const rec = recorderRef.current;
-      if (rec && rec.state !== "inactive") rec.stop();
+      if (rec && rec.state !== "inactive") {
+        try {
+          rec.stop();
+        } catch {
+          /* ignore */
+        }
+      }
       cleanupStream();
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, []);
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  const startRecording = async () => {
+    setError(null);
+    setSeconds(0);
+    blobRef.current = null;
+    chunksRef.current = [];
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+      setPreviewUrl(null);
+    }
+
+    if (!window.isSecureContext) {
+      setError(t("chats.mediaInsecureContext"));
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError(t("chats.mediaNotSupported"));
+      return;
+    }
+
+    setStarting(true);
+    try {
+      const constraints: MediaStreamConstraints =
+        mode === "voice"
+          ? { audio: true }
+          : {
+              audio: true,
+              video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 480 } },
+            };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+
+      if (mode === "video_note" && videoRef.current) {
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play().catch(() => {});
+      }
+
+      const mime = mode === "voice" ? pickVoiceMime() : pickVideoNoteMime();
+      mimeRef.current = mime;
+      const recorder = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        cleanupStream();
+        if (videoRef.current) videoRef.current.srcObject = null;
+        const blob = new Blob(chunksRef.current, {
+          type: mimeRef.current || (mode === "voice" ? "audio/webm" : "video/webm"),
+        });
+        blobRef.current = blob;
+        const url = URL.createObjectURL(blob);
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+      };
+
+      recorder.start(250);
+      setRecording(true);
+      timerRef.current = window.setInterval(() => {
+        setSeconds((s) => {
+          if (s + 1 >= maxSeconds) {
+            stopRecording();
+            return maxSeconds;
+          }
+          return s + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      cleanupStream();
+      setError(mediaErrorMessage(err, mode, t));
+    } finally {
+      setStarting(false);
+    }
+  };
 
   const handleSend = async () => {
     const blob = blobRef.current;
     if (!blob || sending || disabled) return;
     setSending(true);
     try {
-      const ext = mode === "voice" ? "webm" : "webm";
       const type = mimeRef.current || blob.type || (mode === "voice" ? "audio/webm" : "video/webm");
-      const file = blobToFile(blob, `${mode}-${Date.now()}.${ext}`, type);
+      const file = blobToFile(blob, `${mode}-${Date.now()}.webm`, type);
       await onSend(file, mode);
       onClose();
     } catch (e) {
@@ -161,7 +202,12 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-black/60" aria-label={t("profile.cancel")} onClick={onClose} />
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/60"
+        aria-label={t("profile.cancel")}
+        onClick={onClose}
+      />
       <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background p-4 shadow-xl space-y-4">
         <h3 className="text-lg font-semibold text-center">
           {mode === "voice" ? t("chats.recordVoice") : t("chats.recordVideoNote")}
@@ -173,22 +219,28 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
               {previewUrl ? (
                 <video src={previewUrl} className="h-full w-full object-cover" controls playsInline />
               ) : (
-                <video ref={videoRef} className="h-full w-full object-cover" style={{ transform: "scaleX(-1)" }} playsInline muted />
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-cover"
+                  style={{ transform: "scaleX(-1)" }}
+                  playsInline
+                  muted
+                />
               )}
             </div>
           </div>
         )}
 
-        {mode === "voice" && previewUrl && (
-          <audio src={previewUrl} controls className="w-full" />
-        )}
+        {mode === "voice" && previewUrl && <audio src={previewUrl} controls className="w-full" />}
 
-        <p className="text-center text-sm tabular-nums">
-          {recording ? t("chats.recording") : t("chats.recordReady")}: {formatDuration(seconds)}
-          {recording && seconds >= maxSeconds && (
-            <span className="block text-xs text-amber-500 mt-1">{t("chats.maxDurationReached")}</span>
-          )}
-        </p>
+        {(recording || previewUrl) && (
+          <p className="text-center text-sm tabular-nums">
+            {recording ? t("chats.recording") : t("chats.recordReady")}: {formatDuration(seconds)}
+            {recording && seconds >= maxSeconds && (
+              <span className="block text-xs text-amber-500 mt-1">{t("chats.maxDurationReached")}</span>
+            )}
+          </p>
+        )}
 
         {error && <p className="text-sm text-destructive text-center">{error}</p>}
 
@@ -202,14 +254,22 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
               <Button type="button" variant="outline" onClick={onClose} disabled={sending}>
                 {t("profile.cancel")}
               </Button>
+              <Button type="button" variant="outline" onClick={startRecording} disabled={sending || starting}>
+                {t("chats.rerecord")}
+              </Button>
               <Button type="button" onClick={handleSend} disabled={sending || disabled}>
                 {sending ? "…" : t("chats.sendRecording")}
               </Button>
             </>
           ) : (
-            <Button type="button" variant="outline" onClick={onClose}>
-              {t("profile.cancel")}
-            </Button>
+            <>
+              <Button type="button" variant="outline" onClick={onClose}>
+                {t("profile.cancel")}
+              </Button>
+              <Button type="button" onClick={startRecording} disabled={starting || disabled}>
+                {starting ? "…" : t("chats.startRecording")}
+              </Button>
+            </>
           )}
         </div>
       </div>

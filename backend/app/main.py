@@ -518,7 +518,7 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=()"
     if settings.app_env != "development":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     if request.url.path.startswith(settings.api_prefix):
