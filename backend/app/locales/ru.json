@@ -100,6 +100,7 @@
     "cannot_chat_self": "Нельзя создать чат с собой",
     "invalid_message_type": "Неверный тип сообщения",
     "content_required": "Текст сообщения обязателен",
+    "media_required": "Требуется медиафайл",
     "e2e_content_required": "Требуется зашифрованное содержимое",
     "reply_not_found": "Сообщение для ответа не найдено",
     "message_not_found": "Сообщение не найдено",

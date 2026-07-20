@@ -22,6 +22,9 @@ import { EmojiPickerButton } from "@/components/ui/EmojiPickerButton";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
 import { StickerPicker } from "@/components/chat/StickerPicker";
 import { StickerMessage } from "@/components/chat/StickerMessage";
+import { VoiceMessage } from "@/components/chat/VoiceMessage";
+import { VideoNoteMessage } from "@/components/chat/VideoNoteMessage";
+import { MediaRecordPanel } from "@/components/chat/MediaRecordPanel";
 import type { StickerItem } from "@/lib/api";
 
 type GroupMember = {
@@ -60,6 +63,7 @@ export default function ChatPage() {
   const [editDescription, setEditDescription] = useState("");
   const [banMessage, setBanMessage] = useState<string | null>(null);
   const [stickerOpen, setStickerOpen] = useState(false);
+  const [recordMode, setRecordMode] = useState<"voice" | "video_note" | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
@@ -230,6 +234,25 @@ export default function ChatPage() {
     }
   });
 
+  const sendMediaFile = async (file: File, message_type: "voice" | "video_note") => {
+    if (sending || isBanned) return;
+    setSending(true);
+    try {
+      const msg = await api.sendMessage(dialogId, {
+        message_type,
+        reply_to_id: replyTo?.id,
+        file,
+      });
+      setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+      setReplyTo(null);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : t("auth.error"));
+      throw e;
+    } finally {
+      setSending(false);
+    }
+  };
+
   const send = async () => {
     if (!text.trim() && !fileRef.current?.files?.length) return;
     if (sending) return;
@@ -388,15 +411,27 @@ export default function ChatPage() {
   const displayContent = (m: ChatMessage) => {
     if (m.is_deleted) return t("chats.deleted");
     if (m.message_type === "sticker") return t("marketplace.sticker");
+    if (m.message_type === "voice") return t("chats.recordVoice");
+    if (m.message_type === "video_note") return t("chats.recordVideoNote");
     if (dialog?.is_secret) return decrypted[m.id] || "🔒";
     return m.content;
   };
 
   const renderContent = (m: ChatMessage) => {
-    if (m.message_type === "sticker") return null;
+    if (m.message_type === "sticker" || m.message_type === "voice" || m.message_type === "video_note") {
+      return null;
+    }
     const raw = displayContent(m);
     if (!raw || m.is_deleted || dialog?.is_secret) return raw;
     return <LinkifiedText text={raw} />;
+  };
+
+  const hasTextContent = (m: ChatMessage) => {
+    if (m.message_type === "sticker" || m.message_type === "voice" || m.message_type === "video_note") {
+      return false;
+    }
+    const raw = displayContent(m);
+    return !!raw && !m.is_deleted;
   };
 
   if (loading || !user || !dialog) {
@@ -717,15 +752,20 @@ export default function ChatPage() {
                     <img src={m.media_url} alt="" className="max-w-full rounded mb-1" />
                   )}
                   {m.message_type === "sticker" && m.media_url && <StickerMessage url={m.media_url} />}
-                  {m.media_url && (m.message_type === "voice" || m.message_type === "video_note") && (
-                    <audio src={m.media_url} controls className="max-w-full mb-1" />
+                  {m.media_url && m.message_type === "voice" && (
+                    <VoiceMessage url={m.media_url} mine={mine} />
+                  )}
+                  {m.media_url && m.message_type === "video_note" && (
+                    <VideoNoteMessage url={m.media_url} />
                   )}
                   {m.media_url && m.message_type === "file" && (
                     <a href={m.media_url} target="_blank" rel="noreferrer" className="underline block mb-1">
                       📎 {m.file_name || t("chats.file")}
                     </a>
                   )}
-                  <p className="whitespace-pre-wrap break-words">{renderContent(m)}</p>
+                  {hasTextContent(m) && (
+                    <p className="whitespace-pre-wrap break-words">{renderContent(m)}</p>
+                  )}
                   {m.is_edited && <span className="text-xs opacity-60"> ({t("chats.edited")})</span>}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs opacity-60">
@@ -840,10 +880,37 @@ export default function ChatPage() {
               </div>
             )}
 
+            {recordMode && (
+              <MediaRecordPanel
+                mode={recordMode}
+                onSend={sendMediaFile}
+                onClose={() => setRecordMode(null)}
+                disabled={sending}
+              />
+            )}
+
             <div className="px-4 py-3 border-t border-border flex gap-2 shrink-0 items-end">
               <input ref={fileRef} type="file" className="hidden" onChange={() => send()} />
-              <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()}>
+              <Button variant="outline" size="icon" onClick={() => fileRef.current?.click()} title={t("chats.attachFile")}>
                 📎
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setRecordMode("voice")}
+                disabled={sending}
+                title={t("chats.recordVoice")}
+              >
+                🎤
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setRecordMode("video_note")}
+                disabled={sending}
+                title={t("chats.recordVideoNote")}
+              >
+                ⭕
               </Button>
               <Button
                 variant="outline"

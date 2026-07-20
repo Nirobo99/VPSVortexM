@@ -304,7 +304,21 @@
     "openChat": "Open chat",
     "pin": "Pin",
     "unpin": "Unpin",
-    "pinnedMessage": "Pinned message"
+    "pinnedMessage": "Pinned message",
+    "recordVoice": "Voice message",
+    "recordVideoNote": "Video note (circle)",
+    "recording": "Recording",
+    "recordReady": "Duration",
+    "stopRecording": "Stop",
+    "sendRecording": "Send",
+    "playVoice": "Play voice",
+    "pauseVoice": "Pause",
+    "playVideoNote": "Play video note",
+    "pauseVideoNote": "Pause",
+    "micPermissionDenied": "Microphone access denied",
+    "cameraPermissionDenied": "Camera access denied",
+    "maxDurationReached": "Maximum duration reached",
+    "attachFile": "Attach file"
   },
   "calls": {
     "incoming": "Incoming call",

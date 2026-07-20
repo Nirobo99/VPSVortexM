@@ -304,7 +304,21 @@
     "openChat": "Открыть чат",
     "pin": "Закрепить",
     "unpin": "Открепить",
-    "pinnedMessage": "Закреплённое сообщение"
+    "pinnedMessage": "Закреплённое сообщение",
+    "recordVoice": "Голосовое сообщение",
+    "recordVideoNote": "Видеосообщение (кружок)",
+    "recording": "Запись",
+    "recordReady": "Длительность",
+    "stopRecording": "Остановить",
+    "sendRecording": "Отправить",
+    "playVoice": "Воспроизвести",
+    "pauseVoice": "Пауза",
+    "playVideoNote": "Воспроизвести кружок",
+    "pauseVideoNote": "Пауза",
+    "micPermissionDenied": "Нет доступа к микрофону",
+    "cameraPermissionDenied": "Нет доступа к камере",
+    "maxDurationReached": "Достигнута максимальная длительность",
+    "attachFile": "Прикрепить файл"
   },
   "calls": {
     "incoming": "Входящий звонок",

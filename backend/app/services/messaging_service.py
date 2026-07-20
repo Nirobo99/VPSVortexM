@@ -552,6 +552,8 @@ class MessagingService:
             raise ValueError("content_required")
         if message_type == MessageType.STICKER and not content:
             raise ValueError("content_required")
+        if message_type in (MessageType.VOICE, MessageType.VIDEO_NOTE) and not media_content:
+            raise ValueError("media_required")
 
         if reply_to_id:
             rep = await self.db.execute(
