@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { useAuth } from "@/hooks/useAuth";
 import { api, type DialogListItem } from "@/lib/api";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
 import { Avatar, Button, Card, CardContent, Input } from "@/components/ui";
@@ -13,7 +12,6 @@ import { Avatar, Button, Card, CardContent, Input } from "@/components/ui";
 export function ChatsPanel() {
   const { t } = useTranslation();
   const router = useRouter();
-  const { user } = useAuth();
   const [dialogs, setDialogs] = useState<DialogListItem[]>([]);
   const [search, setSearch] = useState("");
   const [newUsername, setNewUsername] = useState("");
@@ -41,18 +39,7 @@ export function ChatsPanel() {
   const startChat = async () => {
     if (!newUsername.trim()) return;
     try {
-      const preferSecret = !!user?.prefer_encrypted_chats;
-      const dialog = await api.createDialog(newUsername.trim(), preferSecret);
-      router.push(`/chats/${dialog.id}`);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : t("auth.error"));
-    }
-  };
-
-  const startSecretChat = async () => {
-    if (!newUsername.trim()) return;
-    try {
-      const dialog = await api.createDialog(newUsername.trim(), true);
+      const dialog = await api.createDialog(newUsername.trim(), false);
       router.push(`/chats/${dialog.id}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : t("auth.error"));
@@ -90,9 +77,6 @@ export function ChatsPanel() {
               className="flex-1 min-w-[140px]"
             />
             <Button onClick={startChat}>{t("chats.startChat")}</Button>
-            <Button variant="outline" onClick={startSecretChat} title={t("chats.secretChat")}>
-              {t("chats.secretChat")}
-            </Button>
           </div>
           <div className="flex gap-2">
             <Input

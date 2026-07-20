@@ -56,7 +56,6 @@ export default function SettingsPage() {
   const [notifySound, setNotifySound] = useState(true);
   const [autoClearHours, setAutoClearHours] = useState<string>("");
   const [chatAppearance, setChatAppearance] = useState("default");
-  const [preferEncrypted, setPreferEncrypted] = useState(false);
   const [callsAudio, setCallsAudio] = useState(true);
   const [callsVideo, setCallsVideo] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,7 +77,6 @@ export default function SettingsPage() {
     setNotifySound(user.notify_sound ?? true);
     setAutoClearHours(user.chat_auto_clear_hours ? String(user.chat_auto_clear_hours) : "");
     setChatAppearance(user.chat_appearance || "default");
-    setPreferEncrypted(user.prefer_encrypted_chats ?? false);
     setCallsAudio(user.calls_audio_enabled ?? true);
     setCallsVideo(user.calls_video_enabled ?? true);
   }, [user]);
@@ -146,7 +144,7 @@ export default function SettingsPage() {
       await api.updateProfile({
         chat_auto_clear_hours: autoClearHours ? Number(autoClearHours) : null,
         chat_appearance: chatAppearance,
-        prefer_encrypted_chats: preferEncrypted,
+        prefer_encrypted_chats: false,
         calls_audio_enabled: callsAudio,
         calls_video_enabled: callsVideo,
       });
@@ -280,13 +278,6 @@ export default function SettingsPage() {
                 <option value="bubbles">{t("settings.appearanceBubbles")}</option>
               </Select>
             </div>
-
-            <ToggleRow
-              label={t("settings.preferEncrypted")}
-              checked={preferEncrypted}
-              onChange={setPreferEncrypted}
-            />
-            <p className="text-xs text-muted-foreground -mt-2">{t("settings.preferEncryptedHint")}</p>
 
             <ToggleRow
               label={t("settings.callsAudio")}

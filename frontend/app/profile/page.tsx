@@ -643,8 +643,6 @@ export default function ProfilePage() {
                 ))}
               </CardContent>
             </Card>
-
-            <ReferralSection />
           </>
         ) : (
           <>

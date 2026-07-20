@@ -240,7 +240,7 @@ async def create_dialog(
     if not other:
         raise HTTPException(status_code=404, detail=t("profile.user_not_found", lang))
 
-    is_secret = bool(body.is_secret or getattr(user, "prefer_encrypted_chats", False))
+    is_secret = bool(body.is_secret)
     auto_delete = body.auto_delete_seconds
     if auto_delete is None:
         hours = getattr(user, "chat_auto_clear_hours", None)
