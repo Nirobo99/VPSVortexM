@@ -143,7 +143,7 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
       }
 
       const mime = mode === "voice" ? pickVoiceMime() : pickVideoNoteMime();
-      mimeRef.current = mime;
+      mimeRef.current = (mime || (mode === "voice" ? "audio/webm" : "video/webm")).split(";", 1)[0].trim();
       const recorder = mime
         ? new MediaRecorder(stream, { mimeType: mime })
         : new MediaRecorder(stream);
@@ -156,9 +156,10 @@ export function MediaRecordPanel({ mode, onSend, onClose, disabled }: Props) {
       recorder.onstop = () => {
         cleanupStream();
         if (videoRef.current) videoRef.current.srcObject = null;
-        const blob = new Blob(chunksRef.current, {
-          type: mimeRef.current || (mode === "voice" ? "audio/webm" : "video/webm"),
-        });
+        const rawType = mimeRef.current || chunksRef.current[0]?.type || (mode === "voice" ? "audio/webm" : "video/webm");
+        const cleanType = rawType.split(";", 1)[0].trim() || (mode === "voice" ? "audio/webm" : "video/webm");
+        mimeRef.current = cleanType;
+        const blob = new Blob(chunksRef.current, { type: cleanType });
         blobRef.current = blob;
         const url = URL.createObjectURL(blob);
         previewUrlRef.current = url;

@@ -110,7 +110,8 @@
     "reaction_exists": "Реакция уже добавлена",
     "cannot_forward_secret": "Нельзя переслать из секретного чата",
     "not_secret_dialog": "Это не секретный чат",
-    "dialog_hidden": "Чат удалён из списка"
+    "dialog_hidden": "Чат удалён из списка",
+    "invalid_file_type": "Недопустимый тип файла"
   },
   "calls": {
     "call_not_found": "Звонок не найден",

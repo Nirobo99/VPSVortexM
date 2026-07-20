@@ -33,7 +33,9 @@ export function pickVideoNoteMime(): string {
 }
 
 export function blobToFile(blob: Blob, name: string, type: string): File {
-  return new File([blob], name, { type: type || blob.type });
+  // Strip codecs params: "audio/webm;codecs=opus" → "audio/webm"
+  const cleanType = (type || blob.type || "application/octet-stream").split(";", 1)[0].trim() || "application/octet-stream";
+  return new File([blob], name, { type: cleanType });
 }
 
 export function formatDuration(seconds: number): string {

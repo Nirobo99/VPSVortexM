@@ -83,7 +83,9 @@
     "not_message_owner": "Can only edit own messages",
     "reaction_exists": "Reaction already added",
     "cannot_forward_secret": "Cannot forward from secret chat",
-    "not_secret_dialog": "Not a secret dialog"
+    "not_secret_dialog": "Not a secret dialog",
+    "invalid_file_type": "Unsupported file type",
+    "media_required": "Media file required"
   },
   "calls": {
     "call_not_found": "Call not found",

@@ -12,14 +12,40 @@ from app.core.config import get_settings
 settings = get_settings()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm"}
-ALLOWED_AUDIO_TYPES = {"audio/ogg", "audio/mpeg", "audio/webm", "audio/mp4", "audio/wav"}
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
+ALLOWED_AUDIO_TYPES = {
+    "audio/ogg",
+    "audio/mpeg",
+    "audio/webm",
+    "audio/mp4",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/aac",
+    "audio/opus",
+}
 ALLOWED_FILE_TYPES = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES | ALLOWED_AUDIO_TYPES | {
     "application/pdf",
     "application/zip",
     "application/octet-stream",
 }
 MAX_FILE_SIZE = 50 * 1024 * 1024
+
+# Browsers often send "audio/webm;codecs=opus" / "video/webm;codecs=vp8,opus"
+MIME_ALIASES = {
+    "audio/x-wav": "audio/wav",
+    "audio/wave": "audio/wav",
+    "audio/opus": "audio/ogg",
+    "video/quicktime": "video/mp4",
+}
+
+
+def normalize_content_type(content_type: str | None, fallback: str = "application/octet-stream") -> str:
+    raw = (content_type or "").strip().lower()
+    if not raw:
+        return fallback
+    base = raw.split(";", 1)[0].strip()
+    return MIME_ALIASES.get(base, base)
 
 
 @lru_cache
@@ -189,8 +215,23 @@ class StorageService:
     def upload_message_media(
         dialog_id: uuid.UUID, user_id: uuid.UUID, content: bytes, content_type: str, message_type: str
     ) -> tuple[str, str]:
+        content_type = normalize_content_type(content_type)
+
+        # Infer type for recorded media when browser sends empty/octet-stream
+        if content_type in ("application/octet-stream", "") or content_type not in ALLOWED_FILE_TYPES:
+            if message_type == "voice":
+                content_type = "audio/webm"
+            elif message_type == "video_note":
+                content_type = "video/webm"
+
         if content_type not in ALLOWED_FILE_TYPES:
             raise ValueError("invalid_file_type")
+
+        if message_type == "voice" and content_type not in ALLOWED_AUDIO_TYPES:
+            raise ValueError("invalid_file_type")
+        if message_type == "video_note" and content_type not in ALLOWED_VIDEO_TYPES:
+            raise ValueError("invalid_file_type")
+
         ext_map = {
             "image/jpeg": "jpg",
             "image/png": "png",
@@ -203,6 +244,7 @@ class StorageService:
             "audio/webm": "webm",
             "audio/mp4": "m4a",
             "audio/wav": "wav",
+            "audio/aac": "aac",
             "application/pdf": "pdf",
             "application/zip": "zip",
         }

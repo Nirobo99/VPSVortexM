@@ -474,7 +474,14 @@ async def send_message(
     file_name = None
     if file and file.filename:
         media_content = await file.read()
-        media_type = file.content_type or "application/octet-stream"
+        from app.services.storage_service import normalize_content_type
+
+        media_type = normalize_content_type(file.content_type)
+        if media_type == "application/octet-stream":
+            if mtype.value == "voice":
+                media_type = "audio/webm"
+            elif mtype.value == "video_note":
+                media_type = "video/webm"
         file_name = file.filename
 
     try:
