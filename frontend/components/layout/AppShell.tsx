@@ -44,11 +44,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Avatar
               src={user.avatar_url}
               name={displayName}
-              admin={isAdminUser(user)}
               className="h-8 w-8 sm:h-9 sm:w-9"
             />
             <span className="hidden md:inline text-sm font-medium truncate max-w-[140px]">
-              <DisplayNameWithBadge name={displayName} verified={user.is_official_verified} />
+              <DisplayNameWithBadge
+                name={displayName}
+                verified={user.is_official_verified}
+                highlighted={user.display_name_highlighted}
+              />
             </span>
           </Link>
           <LanguageSwitcher />

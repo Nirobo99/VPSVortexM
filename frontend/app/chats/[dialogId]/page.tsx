@@ -439,12 +439,14 @@ export default function ChatPage() {
                   <DisplayNameWithBadge
                     name={other.display_name || other.username}
                     verified={other.is_official_verified}
+                    highlighted={other.display_name_highlighted}
                   />
                 </Link>
               ) : (
                 <DisplayNameWithBadge
                   name={other?.display_name || other?.username || "?"}
                   verified={other?.is_official_verified}
+                  highlighted={other?.display_name_highlighted}
                 />
               )}
             </p>

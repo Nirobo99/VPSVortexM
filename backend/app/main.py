@@ -458,6 +458,12 @@ async def lifespan(app: FastAPI):
           WHERE referral_code IS NULL OR referral_code = '';
         END $$;
         """,
+        """
+        DO $$
+        BEGIN
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name_highlighted boolean NOT NULL DEFAULT false;
+        END $$;
+        """,
     ]
     try:
         from sqlalchemy import text

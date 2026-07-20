@@ -162,6 +162,7 @@ class ProfileResponse(BaseModel):
     status_emoji: str | None
     is_verified: bool
     is_official_verified: bool = False
+    display_name_highlighted: bool = False
     is_anonymous: bool
     anonymous_mask_face: bool
     anonymous_mask_voice: bool
@@ -192,6 +193,7 @@ class PublicProfileResponse(BaseModel):
     status_emoji: str | None
     is_verified: bool
     is_official_verified: bool = False
+    display_name_highlighted: bool = False
     is_admin: bool = False
     is_anonymous: bool
     profile_visibility: str

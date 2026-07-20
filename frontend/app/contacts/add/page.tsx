@@ -54,6 +54,7 @@ function AddContactContent() {
                 <DisplayNameWithBadge
                   name={profile.display_name || profile.username}
                   verified={profile.is_official_verified}
+                  highlighted={profile.display_name_highlighted}
                 />
               </p>
               <p className="text-sm text-muted-foreground">@{profile.username}</p>

@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { api, type AnnouncementItem } from "@/lib/api";
 import { Alert, Avatar, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
-import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
+import { formatUserStatus } from "@/lib/profileDisplay";
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -50,7 +50,6 @@ export default function DashboardPage() {
           <Avatar
             src={user.avatar_url}
             name={user.display_name || user.username}
-            admin={isAdminUser(user)}
             className="h-14 w-14"
           />
           <div>
@@ -58,6 +57,7 @@ export default function DashboardPage() {
               <DisplayNameWithBadge
                 name={user.display_name || user.username}
                 verified={user.is_official_verified}
+                highlighted={user.display_name_highlighted}
               />
             </CardTitle>
             <CardDescription>

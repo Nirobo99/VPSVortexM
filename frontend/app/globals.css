@@ -193,6 +193,40 @@
   .circle-nav-pulse {
     animation: none;
   }
+  .display-name-shimmer {
+    animation: none;
+    background: linear-gradient(90deg, #a78bfa, #f472b6, #38bdf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Shimmer gradient for highlighted display names (DB flag) */
+@keyframes displayNameShimmer {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.display-name-shimmer {
+  background: linear-gradient(
+    90deg,
+    #7c3aed 0%,
+    #c084fc 20%,
+    #f472b6 40%,
+    #38bdf8 60%,
+    #a78bfa 80%,
+    #7c3aed 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: displayNameShimmer 3s linear infinite;
 }
 
 @keyframes shimmerRotate {

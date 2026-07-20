@@ -77,6 +77,7 @@ def _participant_info(
         is_online=pres.get("is_online", False),
         last_seen_at=pres.get("last_seen_at"),
         is_official_verified=bool(getattr(user, "is_official_verified", False)),
+        display_name_highlighted=bool(getattr(user, "display_name_highlighted", False)),
         role=role,
         is_admin=bool(is_admin),
         ban_reason=ban_reason if banned else None,

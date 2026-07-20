@@ -153,6 +153,7 @@ export function ChatsPanel() {
                     <DisplayNameWithBadge
                       name={d.other_user?.display_name || d.other_user?.username || "?"}
                       verified={d.other_user?.is_official_verified}
+                      highlighted={d.other_user?.display_name_highlighted}
                     />
                   </span>
                   {d.last_message_at && (

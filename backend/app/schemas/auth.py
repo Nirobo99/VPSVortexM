@@ -93,6 +93,7 @@ class UserMe(BaseModel):
     locale: str
     role: str
     has_admin_panel: bool = False
+    display_name_highlighted: bool = False
     notify_messages: bool = True
     notify_calls: bool = True
     notify_channels: bool = True

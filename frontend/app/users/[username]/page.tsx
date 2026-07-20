@@ -16,7 +16,7 @@ import { LanguageSwitcher } from "@/components/auth/AuthLayout";
 import { Alert, Avatar, Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/components/ui";
 import { LinkifiedText } from "@/components/ui/LinkifiedText";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
-import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
+import { formatUserStatus } from "@/lib/profileDisplay";
 
 export default function PublicProfilePage() {
   const { t } = useTranslation();
@@ -156,13 +156,13 @@ export default function PublicProfilePage() {
                 <Avatar
                   src={profile.avatar_url}
                   name={profile.display_name || profile.username}
-                  admin={isAdminUser(profile)}
                   className="h-24 w-24 text-2xl mx-auto mb-3"
                 />
                 <CardTitle className="flex items-center justify-center gap-2">
                   <DisplayNameWithBadge
                     name={profile.display_name || profile.username}
                     verified={profile.is_official_verified}
+                    highlighted={profile.display_name_highlighted}
                   />
                 </CardTitle>
                 <p className="text-muted-foreground">

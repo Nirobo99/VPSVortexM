@@ -209,6 +209,7 @@ async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(
         locale=user.locale,
         role=user.role.value,
         has_admin_panel=admin_row.scalar_one_or_none() is not None,
+        display_name_highlighted=bool(getattr(user, "display_name_highlighted", False)),
         notify_messages=bool(getattr(user, "notify_messages", True)),
         notify_calls=bool(getattr(user, "notify_calls", True)),
         notify_channels=bool(getattr(user, "notify_channels", True)),

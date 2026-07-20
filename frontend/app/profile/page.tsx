@@ -15,7 +15,7 @@ import {
   type VerificationRequest,
 } from "@/lib/api";
 import { DisplayNameWithBadge } from "@/components/profile/DisplayNameWithBadge";
-import { formatUserStatus, isAdminUser } from "@/lib/profileDisplay";
+import { formatUserStatus } from "@/lib/profileDisplay";
 import { VerificationForm } from "@/components/profile/VerificationForm";
 import { ReferralSection } from "@/components/referral/ReferralSection";
 import { sanitizeSvg } from "@/lib/sanitize";
@@ -359,12 +359,15 @@ export default function ProfilePage() {
                   <Avatar
                     src={profile.avatar_url}
                     name={displayName}
-                    admin={isAdminUser(profile)}
                     className="h-24 w-24 text-2xl mx-auto sm:mx-0"
                   />
                   <div className="flex-1 text-center sm:text-left min-w-0">
                     <h1 className="text-2xl font-semibold truncate">
-                      <DisplayNameWithBadge name={displayName} verified={profile.is_official_verified} />
+                      <DisplayNameWithBadge
+                        name={displayName}
+                        verified={profile.is_official_verified}
+                        highlighted={profile.display_name_highlighted}
+                      />
                     </h1>
                     <p className="text-muted-foreground mt-1">{statusLine}</p>
                     {profile.bio && <p className="text-sm mt-3 whitespace-pre-wrap">{profile.bio}</p>}
@@ -662,7 +665,6 @@ export default function ProfilePage() {
                     <Avatar
                       src={profile.avatar_url}
                       name={displayName}
-                      admin={isAdminUser(profile)}
                       className="h-20 w-20 text-lg"
                     />
                     <div>

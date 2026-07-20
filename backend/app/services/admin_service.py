@@ -110,6 +110,7 @@ class AdminService:
             "role": u.role.value,
             "is_verified": u.is_verified,
             "is_official_verified": u.is_official_verified,
+            "display_name_highlighted": bool(getattr(u, "display_name_highlighted", False)),
             "is_banned": u.is_banned,
             "is_active": u.is_active,
             "wallet_balance": u.wallet_balance,

@@ -50,6 +50,7 @@ export default function AdminUsersPage() {
                     <DisplayNameWithBadge
                       name={String(u.display_name || u.username)}
                       verified={u.is_official_verified === true}
+                      highlighted={u.display_name_highlighted === true}
                     />{" "}
                     {u.is_banned === true ? "🚫" : ""}
                   </p>
@@ -68,6 +69,7 @@ export default function AdminUsersPage() {
               <DisplayNameWithBadge
                 name={String(selected.display_name || selected.username)}
                 verified={selected.is_official_verified === true}
+                highlighted={selected.display_name_highlighted === true}
               />
             </p>
             <p className="text-sm text-muted-foreground">{String(selected.email)} · {String(selected.wallet_balance)} ₽</p>

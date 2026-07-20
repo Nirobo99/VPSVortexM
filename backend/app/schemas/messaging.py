@@ -36,6 +36,7 @@ class DialogParticipantInfo(BaseModel):
     is_online: bool = False
     last_seen_at: str | None = None
     is_official_verified: bool = False
+    display_name_highlighted: bool = False
     role: str | None = None
     is_admin: bool = False
     ban_reason: str | None = None

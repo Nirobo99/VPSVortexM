@@ -30,6 +30,7 @@ export interface UserMe {
   locale: string;
   role: string;
   has_admin_panel: boolean;
+  display_name_highlighted?: boolean;
   notify_messages?: boolean;
   notify_calls?: boolean;
   notify_channels?: boolean;
@@ -61,6 +62,7 @@ export interface PublicProfile {
   status_emoji: string | null;
   is_verified: boolean;
   is_official_verified: boolean;
+  display_name_highlighted?: boolean;
   is_admin: boolean;
   is_anonymous: boolean;
   profile_visibility: string;
@@ -162,6 +164,7 @@ export interface DialogParticipant {
   is_online?: boolean;
   last_seen_at?: string | null;
   is_official_verified?: boolean;
+  display_name_highlighted?: boolean;
   role?: string | null;
   is_admin?: boolean;
   ban_reason?: string | null;

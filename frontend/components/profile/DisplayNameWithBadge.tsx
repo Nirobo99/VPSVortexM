@@ -13,15 +13,18 @@ export function VerifiedBadge({ className }: { className?: string }) {
 export function DisplayNameWithBadge({
   name,
   verified,
+  highlighted,
   className,
 }: {
   name: string;
   verified?: boolean;
+  /** Set via DB: users.display_name_highlighted = true */
+  highlighted?: boolean;
   className?: string;
 }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 min-w-0 ${className ?? ""}`}>
-      <span className="truncate">{name}</span>
+    <span className={`inline-flex items-center gap-1.5 min-w-0 max-w-full ${className ?? ""}`}>
+      <span className={`truncate ${highlighted ? "display-name-shimmer font-semibold" : ""}`}>{name}</span>
       {verified && <VerifiedBadge />}
     </span>
   );

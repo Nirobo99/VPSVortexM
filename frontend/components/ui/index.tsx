@@ -127,13 +127,11 @@ export function Avatar({
   name,
   className,
   online,
-  admin,
 }: {
   src: string | null;
   name: string;
   className?: string;
   online?: boolean;
-  admin?: boolean;
 }) {
   const [imgFailed, setImgFailed] = React.useState(false);
   const initials = name.slice(0, 2).toUpperCase();
@@ -144,21 +142,8 @@ export function Avatar({
   }, [src]);
 
   return (
-    <div className={cn("relative inline-flex shrink-0", admin && "pt-2", className)}>
-      {admin && (
-        <span
-          className="absolute top-0 left-1/2 -translate-x-1/2 z-10 text-base leading-none drop-shadow-sm"
-          aria-hidden
-        >
-          👑
-        </span>
-      )}
-      <div
-        className={cn(
-          "relative w-full h-full rounded-full overflow-hidden",
-          admin && "ring-2 ring-amber-400 ring-offset-2 ring-offset-background"
-        )}
-      >
+    <div className={cn("relative inline-flex shrink-0", className)}>
+      <div className="relative w-full h-full rounded-full overflow-hidden">
         {showImage ? (
           <img
             src={src!}
